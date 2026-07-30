@@ -1,0 +1,183 @@
+{
+  "app_name": "Avision Institute",
+  "personality": "1 iOS-Native Clean with 6 Glass / Luxe surfaces",
+  "personality_one_liner": "A premium, Apple-inspired educational platform that balances highly readable utility with cinematic glass and copper-gold luxury.",
+  "color": {
+    "surface": "#FFFFFF",
+    "onSurface": "#0F172A",
+    "surfaceSecondary": "#F8FAFC",
+    "onSurfaceSecondary": "#1E293B",
+    "surfaceTertiary": "#F1F5F9",
+    "onSurfaceTertiary": "#334155",
+    "surfaceInverse": "#0F172A",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#0B4DB8",
+    "brandPrimary": "#0B4DB8",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#C68A2D",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#EFF6FF",
+    "onBrandTertiary": "#0B4DB8",
+    "success": "#10B981",
+    "onSuccess": "#FFFFFF",
+    "warning": "#F59E0B",
+    "onWarning": "#FFFFFF",
+    "error": "#EF4444",
+    "onError": "#FFFFFF",
+    "info": "#3B82F6",
+    "onInfo": "#FFFFFF",
+    "border": "#E2E8F0",
+    "borderStrong": "#CBD5E1",
+    "divider": "#F1F5F9",
+    "dark": {
+      "surface": "#020617",
+      "onSurface": "#F8FAFC",
+      "surfaceSecondary": "#0F172A",
+      "onSurfaceSecondary": "#F1F5F9",
+      "surfaceTertiary": "#1E293B",
+      "onSurfaceTertiary": "#CBD5E1",
+      "surfaceInverse": "#FFFFFF",
+      "onSurfaceInverse": "#0F172A",
+      "brand": "#0B4DB8",
+      "brandPrimary": "#3B82F6",
+      "onBrandPrimary": "#FFFFFF",
+      "brandSecondary": "#D99E41",
+      "onBrandSecondary": "#0F172A",
+      "brandTertiary": "#1E3A8A",
+      "onBrandTertiary": "#DBEAFE",
+      "success": "#34D399",
+      "onSuccess": "#020617",
+      "warning": "#FBBF24",
+      "onWarning": "#020617",
+      "error": "#F87171",
+      "onError": "#020617",
+      "info": "#60A5FA",
+      "onInfo": "#020617",
+      "border": "#1E293B",
+      "borderStrong": "#334155",
+      "divider": "#0F172A"
+    }
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous Apple-like padding; do not crowd elements. Use intentional whitespace to spotlight content. Primary CTA is sticky at the bottom.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 8,
+    "md": 14,
+    "lg": 20,
+    "xl": 24,
+    "pill": 999
+  },
+  "shadow_tier": 2,
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Use heavily on bottom tabs over scrolling content.",
+      "Use on sticky headers or category filters as users scroll.",
+      "Apply a frosted glass effect on the Floating AI Tutor Button.",
+      "Use on hero featured course cards placed over gradient/image backgrounds."
+    ],
+    "dont's": [
+      "Never blur body text regions or form fields.",
+      "Do not use glass on regular list rows; keep them clean white.",
+      "Do not stack more than two glass surfaces."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home Dashboard",
+      "purpose": "A premium personalized landing experience balancing quick access with Netflix-style course discovery.",
+      "layout": "Root uses sticky header (glass) with Greeting and profile avatar. Below it, a large Search Bar (with rotating placeholder tags: SSC CGL, Banking, etc.). Followed by 'Continue Learning' hero card (glass overlay on course thumbnail). Then a 4x2 grid of 'Quick Access Icons' in brandTertiary tinted containers. Below that, horizontal scrolling sections for 'Complete Exam Categories' (cards with subtle border and 20px radius). Sticky FAB for AI Tutor in the bottom right.",
+      "states": {
+        "loading": "Centered brand-colored spinner.",
+        "empty": "Illustration of a student with 'Start your learning journey today.'",
+        "error": "Clean error message with 'Retry' button."
+      }
+    },
+    {
+      "name": "Exam Detail",
+      "purpose": "Comprehensive syllabus and strategy hub for a specific competitive exam.",
+      "layout": "Hero image banner with vertical gradient scrim (top to bottom fade) and large title. Pinned horizontal scrollable glass tab bar (Overview, Eligibility, Salary, Syllabus...). Below tabs, a single column stack of cards displaying the selected tab's content. Generous padding, crisp typography, and sticky 'Start Preparation' CTA at bottom.",
+      "states": {
+        "loading": "Skeleton cards mimicking text blocks.",
+        "empty": "No info available yet illustration.",
+        "error": "Standard retry state."
+      }
+    },
+    {
+      "name": "Video Course (Netflix-style)",
+      "purpose": "Focused, binge-worthy learning experience.",
+      "layout": "Large 16:9 video player pinned to the top. Below, a horizontal scrollable row 'Up Next / Lessons'. Then tabs for 'Notes', 'Related Resources', 'Discussions'. Progress bars under thumbnails using the Copper Gold brandSecondary color. Bottom tabs are hidden here to maximize focus.",
+      "states": {
+        "loading": "Video player skeleton.",
+        "empty": "No lessons found.",
+        "error": "Error loading video with a retry icon over a dark player background."
+      }
+    },
+    {
+      "name": "Daily Quiz & Gamification",
+      "purpose": "Drive daily engagement through streaks, coins, and mock tests.",
+      "layout": "Header shows current XP, Coins, and Streak count with gold accents. 'Daily Challenge' prominent card. Vertical list of 'Sectional' and 'Full Mock' tests with progress rings. Leaderboard preview at the bottom.",
+      "states": {
+        "loading": "Skeleton UI for quiz cards.",
+        "empty": "Illustration of a trophy waiting to be won.",
+        "error": "Unable to fetch leaderboard/quizzes error."
+      }
+    }
+  ],
+  "images": {
+    "hero_course_bg": {
+      "url": "https://images.unsplash.com/photo-1689718107045-513b35f1a356?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwxfHxwcmVtaXVtJTIwZ29sZCUyMGJsdWUlMjBhYnN0cmFjdCUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzg1MjkxOTQ2fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Premium blue and gold abstract background for hero card"
+    },
+    "student_studying_empty": {
+      "url": "https://images.unsplash.com/photo-1534644107580-3a4dbd494a95?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHwxfHxFeGFtJTIwcHJlcGFyYXRpb24lMjBzdHVkZW50JTIwc3R1ZHlpbmd8ZW58MHx8fHwxNzg1MzkzMzU4fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Student writing with pencil for empty states"
+    },
+    "ai_tutor_avatar": {
+      "url": "https://images.unsplash.com/photo-1728577740843-5f29c7586afe?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHxBSSUyMHR1dG9yJTIwM2QlMjBhdmF0YXJ8ZW58MHx8fHwxNzg1MzkzMzU4fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "3D AI Tutor Avatar"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly adhere to the Clean White Background theme with Royal Blue (#0B4DB8) as the primary brand color and Copper Gold (#C68A2D) for accents (coins, streaks, progress bars).",
+    "Implement 20-24px rounded corners (`lg`/`xl` radius) on all primary cards as explicitly requested by the user.",
+    "For the 'Continue Learning' block and featured courses, use a Netflix-style horizontal scroll with prominent 16:9 thumbnail cards and progress bars.",
+    "Implement glassmorphism on the bottom tab bar, sticky section headers, and the floating AI tutor button (FAB). Use `expo-glass-effect` for iOS and `expo-blur` with a solid fallback for Android.",
+    "On the Home Screen, ensure the 10+ quick access icons (Live Classes, Mock Tests, etc.) are organized in a clean 2-column or horizontal scrolling grid. Use tinted containers (brandTertiary) behind the icons to maintain a premium feel without clutter.",
+    "All hero images and video thumbnails must use a top-to-bottom linear gradient scrim when text is placed on top of them to guarantee readability.",
+    "When building the Video Course screen, hide the main app bottom navigation to allow a focused, immersive learning layout."
+  ]
+}
