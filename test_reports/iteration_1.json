@@ -1,0 +1,47 @@
+{
+  "summary": "First MVP test of Avision Institute app. Backend: 25/25 pytest tests passed (100%) across content endpoints (/greeting, /quick-access, /exam-categories, /exams/{id}, /courses, /courses/{id}, /live-classes, /current-affairs, /current-affairs/{id}, /daily-quiz, /quiz/submit, /mock-tests, /leaderboard, /profile, /performance), AI endpoints (POST /ai/chat with Claude Sonnet 4.5, GET /ai/history, POST /ai/reset, POST /study-planner), quiz scoring logic (all-correct + partial cases + review data), and MongoDB _id leak checks (none leaked). Frontend (mobile web preview, viewport 390x844): Home renders greeting, search bar, Continue Learning hero, Quick Access grid, Live Classes, Exam Categories. Tapping exam-ibps-po navigates to /exam/ibps-po with all 10 tabs present (Overview, Eligibility, Salary, Syllabus, Pattern, Books, Cutoffs, PYQ, Roadmap, FAQs). All 5 bottom tabs (Home/Courses/Tests/Affairs/Profile) navigate correctly and render expected data. Floating AI Tutor FAB opens /ai-tutor, sending a message returns a real Claude Sonnet 4.5 reply within ~5s (verified visually). /planner generates a full markdown study plan (SSC CGL, 4h/day, weak: Quant) rendered on screen within ~15s. Quiz flow works end-to-end: 5 option taps, quiz-next progression, quiz-submit, and result screen showing 1/5 Correct, 20% Accuracy, +10 Coins, +20 XP with full per-question review including correct-answer indicators and explanations. No deprecated Expo packages detected. No React Native red-screen errors. One benign console warning ('props.pointerEvents is deprecated. Use style.pointerEvents') from a lib. Two minor test-hook gaps: assistant chat bubbles in ai-tutor don't expose a `msg-assistant-*` testID, and planner result markdown block does not have a `planner-result` testID — features work but automated verification had to fall back to visual/text checks.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/exams/{id}", "issue": "Unknown exam ids do not return 404; they silently render the default template with the raw id as name. Consider returning 404 for ids not present in EXAM_CATEGORIES."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "app/ai-tutor.tsx", "issue": "Assistant chat message bubbles do not expose a testID (e.g. msg-assistant-{i}). Automated tests must rely on visible text.", "testID": "msg-assistant-*", "priority": "LOW"},
+      {"component": "app/planner.tsx", "issue": "Generated plan markdown container has no testID (e.g. planner-result). Automated tests cannot programmatically detect when the plan has rendered.", "testID": "planner-result", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "react-native-web (transitive)", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Likely originating from a library (e.g. reanimated / gesture-handler / expo-router). Non-blocking but should be tracked."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_avision_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Add testID='msg-assistant-{index}' (and msg-user-{index}) to chat message bubbles in app/ai-tutor.tsx so future automated tests can assert on assistant replies.",
+    "Add testID='planner-result' to the rendered plan markdown/scroll container in app/planner.tsx.",
+    "Optionally: make GET /api/exams/{id} return 404 for unknown ids instead of defaulting.",
+    "Investigate 'props.pointerEvents is deprecated' warning source; migrate to style.pointerEvents where applicable in app code."
+  ],
+  "critical_code_review_comments": [
+    "server.py: /api/exam-categories, /api/courses etc. serve static seed data - fine for MVP.",
+    "quiz_submit correctly excludes `correct`/`explanation` from GET /daily-quiz and returns full review with per-question is_correct + explanation on submit.",
+    "AI chat replays only past 'user' messages to rebuild continuity (single new UserMessage each turn). This may not preserve full assistant context on long threads but is acceptable for MVP. Consider passing full history via chat instance if emergentintegrations supports it.",
+    "No `_id` leaks observed. `chat_messages` collection reads use projection {'_id': 0}.",
+    "Frontend uses EXPO_PUBLIC_BACKEND_URL via src/theme.ts (verified indirectly) — good.",
+    "No deprecated Expo packages (expo-av, expo-barcode-scanner, expo-background-fetch) detected."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_avision_api.py"
+  ],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "100% of tested flows (home, exam detail, all 5 tabs, ai-tutor, planner, quiz)"},
+  "seed_data_creation": "None. Backend serves static seed data from seed_data.py. Test-created MongoDB chat_messages under session_id prefix 'TEST_pytest_*' are cleaned up by the test itself via /api/ai/reset.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend tests live at /app/backend/tests/test_avision_api.py and can be re-run with `pytest /app/backend/tests/ -v`. AI tests hit real Claude Sonnet 4.5 via emergentintegrations so they take ~10-30s each. Frontend testIDs used: home-search-bar, fab-ai-tutor, exam-{id}, tab-home/courses/tests/affairs/profile, tutor-input, tutor-send, planner-generate, planner-exam, planner-hours, planner-target, planner-weak, quiz-opt-{0..3}, quiz-next, quiz-submit. Missing testIDs to add if further automation needed: msg-assistant-{i}, msg-user-{i}, planner-result. Backend URL: https://avision-study-dash.preview.emergentagent.com/api",
+  "rca_of_issue": "No bugs required RCA. All reported items are minor enhancements/test-hook gaps."
+}
