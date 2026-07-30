@@ -101,7 +101,7 @@ export default function AITutor() {
             </View>
           )}
           {messages.map((m, i) => (
-            <View key={i} style={[s.bubbleWrap, m.role === 'user' ? s.bubbleRight : s.bubbleLeft]}>
+            <View key={i} testID={`msg-${m.role}-${i}`} style={[s.bubbleWrap, m.role === 'user' ? s.bubbleRight : s.bubbleLeft]}>
               {m.role === 'assistant' && (
                 <View style={s.aiBadge}>
                   <Ionicons name="sparkles" size={12} color="#FFF" />

@@ -95,7 +95,7 @@ export default function Planner() {
           </Pressable>
 
           {plan && (
-            <View style={s.planCard} testID="generated-plan">
+            <View style={s.planCard} testID="planner-result">
               <View style={s.planHead}>
                 <View style={s.planBadge}>
                   <Ionicons name="checkmark-circle" size={14} color={theme.colors.success} />
