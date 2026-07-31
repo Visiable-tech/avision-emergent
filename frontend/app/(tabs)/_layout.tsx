@@ -3,8 +3,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Platform, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { theme } from '@/src/theme';
+import { useI18n } from '@/src/i18n';
 
 export default function TabsLayout() {
+  const { t } = useI18n();
   return (
     <Tabs
       screenOptions={({ route }) => ({
@@ -42,11 +44,11 @@ export default function TabsLayout() {
         },
       })}
     >
-      <Tabs.Screen name="index" options={{ title: 'Home', tabBarButtonTestID: 'tab-home' }} />
-      <Tabs.Screen name="courses" options={{ title: 'Courses', tabBarButtonTestID: 'tab-courses' }} />
-      <Tabs.Screen name="tests" options={{ title: 'Tests', tabBarButtonTestID: 'tab-tests' }} />
-      <Tabs.Screen name="current-affairs" options={{ title: 'Affairs', tabBarButtonTestID: 'tab-affairs' }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarButtonTestID: 'tab-profile' }} />
+      <Tabs.Screen name="index" options={{ title: t('home'), tabBarButtonTestID: 'tab-home' }} />
+      <Tabs.Screen name="courses" options={{ title: t('courses'), tabBarButtonTestID: 'tab-courses' }} />
+      <Tabs.Screen name="tests" options={{ title: t('tests'), tabBarButtonTestID: 'tab-tests' }} />
+      <Tabs.Screen name="current-affairs" options={{ title: t('affairs'), tabBarButtonTestID: 'tab-affairs' }} />
+      <Tabs.Screen name="profile" options={{ title: t('profile'), tabBarButtonTestID: 'tab-profile' }} />
     </Tabs>
   );
 }

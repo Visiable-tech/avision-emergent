@@ -6,6 +6,8 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '@/src/theme';
 import { api } from '@/src/api';
+import { useCategory } from '@/src/CategoryContext';
+import { useI18n } from '@/src/i18n';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -16,23 +18,25 @@ const FILTERS = [
 
 export default function Tests() {
   const router = useRouter();
+  const { t } = useI18n();
+  const { categoryId } = useCategory();
   const [tests, setTests] = useState<any[]>([]);
   const [leaderboard, setLB] = useState<any[]>([]);
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     (async () => {
-      const [t, lb] = await Promise.all([api.mockTests(), api.leaderboard()]);
-      setTests(t.tests); setLB(lb.users);
+      const [tt, lb] = await Promise.all([api.mockTests(categoryId || undefined), api.leaderboard()]);
+      setTests(tt.tests); setLB(lb.users);
     })();
-  }, []);
+  }, [categoryId]);
 
   const filtered = filter === 'all' ? tests : tests.filter((t) => t.type === filter);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.surface }}>
       <SafeAreaView edges={['top']} style={s.header}>
-        <Text style={s.title}>Test Series</Text>
+        <Text style={s.title}>{t('tests')}</Text>
         <Text style={s.subtitle}>Practice. Analyze. Rank up.</Text>
 
         <View style={s.dailyCard}>
@@ -40,12 +44,12 @@ export default function Tests() {
           <View style={s.dailyContent}>
             <View style={s.dailyBadge}>
               <Ionicons name="flash" size={12} color={theme.colors.gold} />
-              <Text style={s.dailyBadgeText}>DAILY CHALLENGE</Text>
+              <Text style={s.dailyBadgeText}>{t('dailyChallenge')}</Text>
             </View>
-            <Text style={s.dailyTitle}>5 Questions • 50 Coins</Text>
-            <Text style={s.dailyDesc}>Boost your streak with today's quiz</Text>
+            <Text style={s.dailyTitle}>{t('fiveQ50Coins')}</Text>
+            <Text style={s.dailyDesc}>{t('boostStreak')}</Text>
             <Pressable testID="take-daily-quiz" style={s.dailyBtn} onPress={() => router.push('/quiz')}>
-              <Text style={s.dailyBtnText}>Take Quiz</Text>
+              <Text style={s.dailyBtnText}>{t('takeQuiz')}</Text>
               <Ionicons name="arrow-forward" size={16} color={theme.colors.brand} />
             </Pressable>
           </View>
@@ -69,7 +73,7 @@ export default function Tests() {
         contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: 140 }}
         ListFooterComponent={
           <View style={{ marginTop: 20 }}>
-            <Text style={s.section}>Leaderboard</Text>
+            <Text style={s.section}>{t('leaderboard')}</Text>
             <View style={s.lbCard}>
               {leaderboard.slice(0, 7).map((u: any) => (
                 <View key={u.rank} style={[s.lbRow, u.is_me && s.lbRowMe]}>

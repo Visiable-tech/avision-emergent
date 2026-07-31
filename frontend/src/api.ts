@@ -26,17 +26,19 @@ export const api = {
   greeting: () => req('/greeting', undefined, true),
   quickAccess: () => req('/quick-access'),
   examCategories: () => req('/exam-categories'),
+  activeCategories: (search?: string) => req(`/exam-categories/active${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  categoryDetail: (id: string) => req(`/exam-categories/${id}`),
   examDetail: (id: string) => req(`/exams/${id}`),
-  courses: () => req('/courses'),
-  activeCourses: () => req('/courses/active'),
+  courses: (category?: string) => req(`/courses${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+  activeCourses: (category?: string) => req(`/courses/active${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   courseDetail: (id: string) => req(`/courses/${id}`),
-  liveClasses: () => req('/live-classes'),
-  currentAffairs: () => req('/current-affairs'),
+  liveClasses: (category?: string) => req(`/live-classes${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+  currentAffairs: (category?: string) => req(`/current-affairs${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   currentAffairsDetail: (id: string) => req(`/current-affairs/${id}`),
   dailyQuiz: () => req('/daily-quiz'),
   submitQuiz: (quiz_id: string, answers: number[]) =>
     req('/quiz/submit', { method: 'POST', body: JSON.stringify({ quiz_id, answers }) }),
-  mockTests: () => req('/mock-tests'),
+  mockTests: (category?: string) => req(`/mock-tests${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   leaderboard: () => req('/leaderboard'),
   profile: () => req('/profile'),
   performance: () => req('/performance'),
@@ -50,7 +52,7 @@ export const api = {
       body: JSON.stringify({ exam, hours_per_day: hours, weak_subjects: weak, target_date: target }),
     }),
   // Auth
-  register: (body: { name: string; email: string; password: string; phone: string; course_id: string }) =>
+  register: (body: { name: string; email: string; password: string; phone: string; category_id?: string; course_id?: string; language?: string }) =>
     req('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (email: string, password: string) =>
     req('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
@@ -62,4 +64,8 @@ export const api = {
     req('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, new_password }) }),
   updateCourse: (course_id: string) =>
     req('/auth/update-course', { method: 'POST', body: JSON.stringify({ course_id }) }, true),
+  updateCategory: (category_id: string, selected_exam_id?: string) =>
+    req('/auth/update-category', { method: 'POST', body: JSON.stringify({ category_id, selected_exam_id }) }, true),
+  updateLanguage: (language: string) =>
+    req('/auth/update-language', { method: 'POST', body: JSON.stringify({ language }) }, true),
 };

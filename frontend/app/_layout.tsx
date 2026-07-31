@@ -7,6 +7,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { useIconFonts } from '@/src/hooks/use-icon-fonts';
 import { AuthProvider, useAuth } from '@/src/AuthContext';
+import { I18nProvider, useI18n } from '@/src/i18n';
+import { CategoryProvider, useCategory } from '@/src/CategoryContext';
 import { theme } from '@/src/theme';
 
 LogBox.ignoreAllLogs(true);
@@ -26,6 +28,21 @@ function useProtectedRoute() {
       router.replace('/(tabs)');
     }
   }, [user, loading, segments]);
+}
+
+// Bridge — sync category & language from logged-in user
+function AuthBridge({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const { setCategoryId } = useCategory();
+  const { setLang, lang } = useI18n();
+
+  useEffect(() => {
+    if (user?.category_id) setCategoryId(user.category_id, false);
+    if (user?.language && user.language !== lang) setLang(user.language as any, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.category_id, user?.language]);
+
+  return <>{children}</>;
 }
 
 function RootStack() {
@@ -57,21 +74,22 @@ function RootStack() {
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
 
-  useEffect(() => {
-    if (loaded || error) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded, error]);
-
+  useEffect(() => { if (loaded || error) { SplashScreen.hideAsync(); } }, [loaded, error]);
   if (!loaded && !error) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-        <AuthProvider>
-          <RootStack />
-        </AuthProvider>
+        <I18nProvider>
+          <CategoryProvider>
+            <AuthProvider>
+              <AuthBridge>
+                <RootStack />
+              </AuthBridge>
+            </AuthProvider>
+          </CategoryProvider>
+        </I18nProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

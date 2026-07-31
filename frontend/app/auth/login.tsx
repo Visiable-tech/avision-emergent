@@ -107,7 +107,7 @@ export default function Login() {
 
           <View style={s.registerRow}>
             <Text style={s.regQ}>New to Avision Institute?</Text>
-            <Pressable testID="login-goto-register" onPress={() => router.replace('/auth/course-select')}>
+            <Pressable testID="login-goto-register" onPress={() => router.replace('/auth/category-select')}>
               <Text style={s.regLink}>Create Account</Text>
             </Pressable>
           </View>

@@ -25,6 +25,11 @@ from seed_data import (
     MOCK_TESTS,
 )
 from auth import init_auth, make_router, ensure_indexes, get_optional_user, get_current_user
+from categories import (
+    init_categories, seed_categories, category_exists,
+    public_router as categories_public_router,
+    admin_router as categories_admin_router,
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -43,19 +48,23 @@ logger = logging.getLogger(__name__)
 
 # Wire auth
 init_auth(db)
+init_categories(db)
 
 
 def _get_courses():
     return COURSES
 
 
-auth_router = make_router(_get_courses)
+auth_router = make_router(_get_courses, category_check=category_exists)
 app.include_router(auth_router)
+app.include_router(categories_public_router)
+app.include_router(categories_admin_router)
 
 
 @app.on_event("startup")
 async def _startup():
     await ensure_indexes(db)
+    await seed_categories(db)
 
 
 # ---------------- Models ----------------
@@ -110,20 +119,71 @@ async def root():
     return {"message": "Avision Institute API", "status": "ok"}
 
 
+def _tag_category(items, id_map):
+    """Attach category_id to items using an id -> category_id mapping."""
+    for it in items:
+        if "category_id" not in it and it.get("id") in id_map:
+            it["category_id"] = id_map[it["id"]]
+        elif "category_id" not in it and it.get("subject"):
+            it["category_id"] = _SUBJECT_TO_CAT.get(it.get("subject", "").lower(), None)
+    return items
+
+
+_SUBJECT_TO_CAT = {
+    "ssc": "ssc", "banking": "banking", "upsc": "upsc", "law": "law",
+    "railway": "railway", "teaching": "teaching", "mba": "mba",
+    "defence": "defence", "police": "police", "insurance": "insurance",
+    "cuet": "cuet", "state": "state-exams",
+}
+
+
+# Pre-tag seed data
+for c in COURSES:
+    c.setdefault("category_id", _SUBJECT_TO_CAT.get((c.get("subject") or "").lower()))
+
+_LIVE_CAT = {"lc1": "ssc", "lc2": "banking", "lc3": "upsc", "lc4": "banking"}
+for lc in LIVE_CLASSES:
+    lc.setdefault("category_id", _LIVE_CAT.get(lc["id"]))
+
+_MOCK_CAT = {"mt1": "ssc", "mt2": "banking", "mt3": "upsc", "mt4": "law",
+             "mt5": "ssc", "mt6": "railway"}
+for mt in MOCK_TESTS:
+    mt.setdefault("category_id", _MOCK_CAT.get(mt["id"]))
+
+# Current affairs are general — tag all as available for all categories
+for ca in CURRENT_AFFAIRS:
+    ca.setdefault("category_id", None)  # None means visible in all categories
+
+
+def _filter_by_cat(items, category_id: Optional[str]):
+    if not category_id:
+        return items
+    return [i for i in items if (i.get("category_id") is None) or (i.get("category_id") == category_id)]
+
+
 @api_router.get("/greeting")
 async def greeting(user: Optional[dict] = Depends(get_optional_user)):
-    hour = datetime.now(timezone.utc).hour + 5  # rough IST
+    hour = datetime.now(timezone.utc).hour + 5
     hour = hour % 24
     if hour < 12:
-        g = "Good Morning"
+        g = "morning"
     elif hour < 17:
-        g = "Good Afternoon"
+        g = "afternoon"
     else:
-        g = "Good Evening"
+        g = "evening"
+    label = {"morning": "Good Morning", "afternoon": "Good Afternoon", "evening": "Good Evening"}[g]
     if user:
         first = (user.get("name") or "Student").split(" ")[0]
-        return {"greeting": g, "name": first, "streak": user.get("streak", 0), "coins": user.get("coins", 0), "xp": user.get("xp", 0)}
-    return {"greeting": g, "name": PROFILE["name"].split(" ")[0], "streak": PROFILE["streak"], "coins": PROFILE["coins"], "xp": PROFILE["xp"]}
+        return {
+            "greeting": label, "greeting_key": g, "name": first,
+            "streak": user.get("streak", 0), "coins": user.get("coins", 0), "xp": user.get("xp", 0),
+            "category_id": user.get("category_id"), "language": user.get("language", "en"),
+        }
+    return {
+        "greeting": label, "greeting_key": g, "name": PROFILE["name"].split(" ")[0],
+        "streak": PROFILE["streak"], "coins": PROFILE["coins"], "xp": PROFILE["xp"],
+        "category_id": None, "language": "en",
+    }
 
 
 @api_router.get("/quick-access")
@@ -148,19 +208,20 @@ async def exam_detail(exam_id: str):
 
 
 @api_router.get("/courses")
-async def courses(active_only: bool = False):
+async def courses(active_only: bool = False, category: Optional[str] = None):
     src = [c for c in COURSES if (c.get("active", True) or not active_only)]
+    src = _filter_by_cat(src, category)
     return {"courses": [{k: v for k, v in c.items() if k != "chapters"} for c in src]}
 
 
 @api_router.get("/courses/active")
-async def active_courses():
-    """Only active courses – used for the Registration → Course Selection step."""
+async def active_courses(category: Optional[str] = None):
     src = [c for c in COURSES if c.get("active", True)]
+    src = _filter_by_cat(src, category)
     return {"courses": [
         {"id": c["id"], "title": c["title"], "subject": c["subject"], "instructor": c["instructor"],
          "duration_hours": c["duration_hours"], "rating": c["rating"], "students": c["students"],
-         "thumbnail": c["thumbnail"]}
+         "thumbnail": c["thumbnail"], "category_id": c.get("category_id")}
         for c in src
     ]}
 
@@ -174,13 +235,13 @@ async def course_detail(course_id: str):
 
 
 @api_router.get("/live-classes")
-async def live_classes():
-    return {"classes": LIVE_CLASSES}
+async def live_classes(category: Optional[str] = None):
+    return {"classes": _filter_by_cat(LIVE_CLASSES, category)}
 
 
 @api_router.get("/current-affairs")
-async def current_affairs():
-    return {"articles": CURRENT_AFFAIRS}
+async def current_affairs(category: Optional[str] = None):
+    return {"articles": _filter_by_cat(CURRENT_AFFAIRS, category)}
 
 
 @api_router.get("/current-affairs/{article_id}")
@@ -230,8 +291,8 @@ async def quiz_submit(req: QuizSubmitRequest):
 
 
 @api_router.get("/mock-tests")
-async def mock_tests():
-    return {"tests": MOCK_TESTS}
+async def mock_tests(category: Optional[str] = None):
+    return {"tests": _filter_by_cat(MOCK_TESTS, category)}
 
 
 @api_router.get("/leaderboard")

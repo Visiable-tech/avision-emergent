@@ -4,9 +4,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { theme } from '@/src/theme';
+import { useI18n } from '@/src/i18n';
 
 export default function Welcome() {
   const router = useRouter();
+  const { t } = useI18n();
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.surface }}>
       <LinearGradient colors={[theme.colors.brand, theme.colors.brandDark]} style={s.hero}>
@@ -16,26 +18,26 @@ export default function Welcome() {
               <Ionicons name="school" size={44} color="#FFF" />
             </View>
             <Text style={s.brand}>Avision Institute</Text>
-            <Text style={s.tag}>One Destination for Every{'\n'}Competitive Exam</Text>
+            <Text style={s.tag}>{t('brandTag')}</Text>
             <View style={s.badgeRow}>
-              <View style={s.badge}><Ionicons name="sparkles" size={12} color={theme.colors.gold} /><Text style={s.badgeTxt}>AI Tutor</Text></View>
-              <View style={s.badge}><Ionicons name="trophy" size={12} color={theme.colors.gold} /><Text style={s.badgeTxt}>Mock Tests</Text></View>
-              <View style={s.badge}><Ionicons name="videocam" size={12} color={theme.colors.gold} /><Text style={s.badgeTxt}>Live Classes</Text></View>
+              <View style={s.badge}><Ionicons name="sparkles" size={12} color={theme.colors.gold} /><Text style={s.badgeTxt}>{t('aiTutor')}</Text></View>
+              <View style={s.badge}><Ionicons name="trophy" size={12} color={theme.colors.gold} /><Text style={s.badgeTxt}>{t('tests')}</Text></View>
+              <View style={s.badge}><Ionicons name="videocam" size={12} color={theme.colors.gold} /><Text style={s.badgeTxt}>{t('liveClasses')}</Text></View>
             </View>
           </View>
         </SafeAreaView>
       </LinearGradient>
 
       <View style={s.bottom}>
-        <Text style={s.title}>Start your journey</Text>
-        <Text style={s.subtitle}>Join 1L+ aspirants preparing with us</Text>
+        <Text style={s.title}>{t('startJourney')}</Text>
+        <Text style={s.subtitle}>{t('joinSub')}</Text>
 
         <Pressable
           testID="welcome-register"
           style={s.primaryBtn}
-          onPress={() => router.push('/auth/course-select')}
+          onPress={() => router.push('/auth/category-select')}
         >
-          <Text style={s.primaryTxt}>Create Account</Text>
+          <Text style={s.primaryTxt}>{t('createAccount')}</Text>
           <Ionicons name="arrow-forward" size={18} color="#FFF" />
         </Pressable>
 
@@ -44,10 +46,10 @@ export default function Welcome() {
           style={s.secondaryBtn}
           onPress={() => router.push('/auth/login')}
         >
-          <Text style={s.secondaryTxt}>I already have an account</Text>
+          <Text style={s.secondaryTxt}>{t('haveAccount')}</Text>
         </Pressable>
 
-        <Text style={s.legal}>By continuing, you agree to our Terms & Privacy Policy</Text>
+        <Text style={s.legal}>{t('agreeTerms')}</Text>
       </View>
     </View>
   );

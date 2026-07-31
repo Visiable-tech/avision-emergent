@@ -7,21 +7,23 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { theme } from '@/src/theme';
 import { api } from '@/src/api';
+import { useCategory } from '@/src/CategoryContext';
 
 const FILTERS = ['All', 'SSC', 'Banking', 'UPSC', 'Law', 'Railway'];
 
 export default function Courses() {
   const router = useRouter();
+  const { categoryId } = useCategory();
   const [courses, setCourses] = useState<any[]>([]);
   const [live, setLive] = useState<any[]>([]);
   const [filter, setFilter] = useState('All');
 
   useEffect(() => {
     (async () => {
-      const [c, l] = await Promise.all([api.courses(), api.liveClasses()]);
+      const [c, l] = await Promise.all([api.courses(categoryId || undefined), api.liveClasses(categoryId || undefined)]);
       setCourses(c.courses); setLive(l.classes);
     })();
-  }, []);
+  }, [categoryId]);
 
   const filtered = filter === 'All' ? courses : courses.filter((c) => c.subject === filter);
 

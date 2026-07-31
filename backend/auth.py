@@ -39,7 +39,9 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=64)
     phone: str
-    course_id: str
+    category_id: Optional[str] = None  # new architecture
+    course_id: Optional[str] = None  # legacy support
+    language: Optional[str] = "en"
 
     @field_validator("phone")
     @classmethod
@@ -67,9 +69,19 @@ class UpdateCourseIn(BaseModel):
     course_id: str
 
 
+class UpdateCategoryIn(BaseModel):
+    category_id: str
+    selected_exam_id: Optional[str] = None
+
+
+class UpdateLanguageIn(BaseModel):
+    language: str  # en | hi | bn
+
+
 class GoogleSessionIn(BaseModel):
     session_id: str
     course_id: Optional[str] = None
+    category_id: Optional[str] = None
 
 
 class TokenOut(BaseModel):
@@ -160,12 +172,24 @@ async def _validate_course(course_id: str, courses_list) -> dict:
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-def make_router(courses_provider):
-    """courses_provider: callable returning current list of courses (with active flag)."""
+def make_router(courses_provider, category_check=None):
+    """
+    courses_provider: callable returning current list of courses (with active flag).
+    category_check: async callable(category_id) -> bool that validates a category.
+    """
 
     @router.post("/register", response_model=TokenOut, status_code=201)
     async def register(data: RegisterIn):
-        await _validate_course(data.course_id, courses_provider())
+        # Validate category (new) or course (legacy)
+        if data.category_id and category_check:
+            ok = await category_check(data.category_id)
+            if not ok:
+                raise HTTPException(400, "Selected exam category is not available.")
+        elif data.course_id:
+            await _validate_course(data.course_id, courses_provider())
+        else:
+            raise HTTPException(400, "Please select an exam category.")
+
         email = data.email.lower().strip()
         existing = await _db.users.find_one({"email": email}, {"_id": 0, "user_id": 1})
         if existing:
@@ -179,9 +203,12 @@ def make_router(courses_provider):
             "email": email,
             "password_hash": hash_password(data.password),
             "phone": data.phone,
-            "course_id": data.course_id,
+            "category_id": data.category_id,
+            "selected_exam_id": None,
+            "course_id": data.course_id,  # legacy
+            "language": data.language or "en",
             "auth_provider": "email",
-            "coins": 100,  # welcome bonus
+            "coins": 100,
             "xp": 0,
             "streak": 0,
             "level": 1,
@@ -293,6 +320,23 @@ def make_router(courses_provider):
             {"$set": {"course_id": data.course_id}},
         )
         return {"message": "Course updated", "course_id": data.course_id}
+
+    @router.post("/update-category")
+    async def update_category(data: UpdateCategoryIn, user: dict = Depends(get_current_user)):
+        if category_check and not await category_check(data.category_id):
+            raise HTTPException(400, "Selected category not available")
+        upd = {"category_id": data.category_id}
+        if data.selected_exam_id is not None:
+            upd["selected_exam_id"] = data.selected_exam_id
+        await _db.users.update_one({"user_id": user["user_id"]}, {"$set": upd})
+        return {"message": "Category updated", "category_id": data.category_id, "selected_exam_id": data.selected_exam_id}
+
+    @router.post("/update-language")
+    async def update_language(data: UpdateLanguageIn, user: dict = Depends(get_current_user)):
+        if data.language not in {"en", "hi", "bn"}:
+            raise HTTPException(400, "Unsupported language")
+        await _db.users.update_one({"user_id": user["user_id"]}, {"$set": {"language": data.language}})
+        return {"message": "Language updated", "language": data.language}
 
     return router
 

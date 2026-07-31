@@ -7,15 +7,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { theme } from '@/src/theme';
 import { api } from '@/src/api';
+import { useCategory } from '@/src/CategoryContext';
 
 const CATS = ['All', 'National', 'International', 'Economy', 'Science', 'Sports', 'Awards'];
 
 export default function CurrentAffairs() {
   const router = useRouter();
+  const { categoryId } = useCategory();
   const [items, setItems] = useState<any[]>([]);
   const [cat, setCat] = useState('All');
 
-  useEffect(() => { (async () => setItems((await api.currentAffairs()).articles))(); }, []);
+  useEffect(() => { (async () => setItems((await api.currentAffairs(categoryId || undefined)).articles))(); }, [categoryId]);
   const filtered = cat === 'All' ? items : items.filter((i) => i.category === cat);
 
   return (

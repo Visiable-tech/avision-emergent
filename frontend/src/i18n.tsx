@@ -1,0 +1,371 @@
+/**
+ * i18n context for Avision Institute.
+ * Supports English, Hindi, Bengali.
+ * Persisted in secure storage + synced to backend for logged-in users.
+ */
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+import { api } from './api';
+
+export type Lang = 'en' | 'hi' | 'bn';
+
+const LANG_KEY = 'avision_lang';
+
+export const LANGUAGES: { code: Lang; label: string; native: string; flag: string }[] = [
+  { code: 'en', label: 'English', native: 'English', flag: '🇬🇧' },
+  { code: 'hi', label: 'Hindi', native: 'हिन्दी', flag: '🇮🇳' },
+  { code: 'bn', label: 'Bengali', native: 'বাংলা', flag: '🇮🇳' },
+];
+
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+type Dict = Record<string, string>;
+
+const en: Dict = {
+  // common
+  continue: 'Continue',
+  cancel: 'Cancel',
+  save: 'Save',
+  loading: 'Loading...',
+  retry: 'Retry',
+  seeAll: 'See all',
+  search: 'Search',
+  next: 'Next',
+  previous: 'Previous',
+  submit: 'Submit',
+  back: 'Back',
+  change: 'Change',
+  logout: 'Logout',
+  language: 'Language',
+  category: 'Exam Category',
+  changeCategory: 'Change Category',
+  selectCategory: 'Please select a category',
+  welcome: 'Welcome back',
+  goodMorning: 'Good Morning',
+  goodAfternoon: 'Good Afternoon',
+  goodEvening: 'Good Evening',
+  // welcome
+  brandTag: 'One Destination for Every\nCompetitive Exam',
+  startJourney: 'Start your journey',
+  joinSub: 'Join 1L+ aspirants preparing with us',
+  createAccount: 'Create Account',
+  haveAccount: 'I already have an account',
+  agreeTerms: 'By continuing, you agree to our Terms & Privacy Policy',
+  // category select
+  categoryTitle: 'Your Exam Category',
+  categorySubtitle: 'Pick the category that fits your goal.\nYou can switch anytime later.',
+  categorySearchPlaceholder: 'Search Banking, SSC, Railway...',
+  noCategoryFound: 'No category found. Try a different search.',
+  // register
+  createYourAccount: 'Create your account',
+  oneStepAway: "You're just one step away",
+  selectedCategoryLabel: 'SELECTED CATEGORY',
+  fullName: 'Full Name',
+  emailAddress: 'Email Address',
+  mobileNumber: 'Mobile Number',
+  password: 'Password',
+  confirmPassword: 'Confirm Password',
+  passwordHint: 'Minimum 6 characters',
+  reEnter: 'Re-enter password',
+  alreadyAccount: 'Already have an account?',
+  login: 'Login',
+  errNameShort: 'Please enter your full name.',
+  errEmail: 'Please enter a valid email address.',
+  errPhone: 'Enter a valid 10-digit Indian mobile number.',
+  errPwShort: 'Password must be at least 6 characters.',
+  errPwMismatch: 'Passwords do not match.',
+  errCategoryMissing: 'Please select an exam category first.',
+  // login
+  signInSub: 'Sign in to continue your prep',
+  forgot: 'Forgot?',
+  yourPassword: 'Your password',
+  errLogin: 'Login failed. Please try again.',
+  // forgot pw
+  resetPassword: 'Reset Password',
+  fpEmailStep: "Enter your email and we'll send you a reset code.",
+  fpResetStep: 'Enter the reset code and choose a new password.',
+  fpDoneStep: 'Your password has been reset.',
+  resetCode: 'Reset Code',
+  newPassword: 'New Password',
+  sendResetCode: 'Send Reset Code',
+  passwordResetDone: 'Password Reset!',
+  passwordResetDoneSub: 'You can now login with your new password.',
+  backToLogin: 'Back to Login',
+  pasteCode: 'Paste code here',
+  // home / tabs
+  home: 'Home',
+  courses: 'Courses',
+  tests: 'Tests',
+  affairs: 'Affairs',
+  profile: 'Profile',
+  quickAccess: 'Quick Access',
+  liveClasses: 'Live Classes',
+  continueLearning: 'CONTINUE LEARNING',
+  resume: 'Resume',
+  complete: 'complete',
+  emptyContent: 'No content in this category yet. Check back soon.',
+  // profile / settings
+  performance: 'Performance Analytics',
+  badges: 'Badges & Achievements',
+  menu: 'Menu',
+  settings: 'Settings',
+  certificates: 'Certificates',
+  bookmarks: 'Bookmarks',
+  downloads: 'Downloads',
+  aiPlanner: 'AI Study Planner',
+  aiTutor: 'AI Tutor',
+  subscription: 'Subscription',
+  helpSupport: 'Help & Support',
+  studyHours: 'Study Hours',
+  testsTaken: 'Tests',
+  accuracy: 'Accuracy',
+  rank: 'Rank',
+  aiSuggestions: 'AI Suggestions',
+  // tests
+  dailyChallenge: 'DAILY CHALLENGE',
+  fiveQ50Coins: '5 Questions • 50 Coins',
+  boostStreak: "Boost your streak with today's quiz",
+  takeQuiz: 'Take Quiz',
+  leaderboard: 'Leaderboard',
+};
+
+const hi: Dict = {
+  continue: 'आगे बढ़ें',
+  cancel: 'रद्द करें',
+  save: 'सहेजें',
+  loading: 'लोड हो रहा है...',
+  retry: 'पुनः प्रयास',
+  seeAll: 'सभी देखें',
+  search: 'खोजें',
+  next: 'अगला',
+  previous: 'पिछला',
+  submit: 'जमा करें',
+  back: 'वापस',
+  change: 'बदलें',
+  logout: 'लॉग आउट',
+  language: 'भाषा',
+  category: 'परीक्षा श्रेणी',
+  changeCategory: 'श्रेणी बदलें',
+  selectCategory: 'कृपया एक श्रेणी चुनें',
+  welcome: 'स्वागत है',
+  goodMorning: 'सुप्रभात',
+  goodAfternoon: 'नमस्कार',
+  goodEvening: 'शुभ संध्या',
+  brandTag: 'हर प्रतियोगी परीक्षा के लिए\nएक ही मंज़िल',
+  startJourney: 'अपनी यात्रा शुरू करें',
+  joinSub: 'हमारे साथ 1 लाख+ प्रतियोगियों में शामिल हों',
+  createAccount: 'खाता बनाएं',
+  haveAccount: 'मेरे पास पहले से खाता है',
+  agreeTerms: 'आगे बढ़कर आप हमारी शर्तें और गोपनीयता नीति स्वीकार करते हैं',
+  categoryTitle: 'अपनी परीक्षा श्रेणी',
+  categorySubtitle: 'अपने लक्ष्य के अनुसार श्रेणी चुनें।\nबाद में कभी भी बदल सकते हैं।',
+  categorySearchPlaceholder: 'बैंकिंग, एसएससी, रेलवे खोजें...',
+  noCategoryFound: 'कोई श्रेणी नहीं मिली। कृपया अन्य खोज आज़माएँ।',
+  createYourAccount: 'खाता बनाएं',
+  oneStepAway: 'बस एक कदम और',
+  selectedCategoryLabel: 'चयनित श्रेणी',
+  fullName: 'पूरा नाम',
+  emailAddress: 'ईमेल पता',
+  mobileNumber: 'मोबाइल नंबर',
+  password: 'पासवर्ड',
+  confirmPassword: 'पासवर्ड की पुष्टि करें',
+  passwordHint: 'न्यूनतम 6 अक्षर',
+  reEnter: 'पासवर्ड फिर से दर्ज करें',
+  alreadyAccount: 'क्या पहले से खाता है?',
+  login: 'लॉगिन',
+  errNameShort: 'कृपया पूरा नाम दर्ज करें।',
+  errEmail: 'कृपया एक मान्य ईमेल दर्ज करें।',
+  errPhone: 'कृपया 10-अंकों का मान्य मोबाइल नंबर दर्ज करें।',
+  errPwShort: 'पासवर्ड कम से कम 6 अक्षरों का हो।',
+  errPwMismatch: 'पासवर्ड मेल नहीं खा रहे।',
+  errCategoryMissing: 'पहले एक परीक्षा श्रेणी चुनें।',
+  signInSub: 'अपनी तैयारी जारी रखने के लिए साइन इन करें',
+  forgot: 'भूल गए?',
+  yourPassword: 'आपका पासवर्ड',
+  errLogin: 'लॉगिन विफल। पुनः प्रयास करें।',
+  resetPassword: 'पासवर्ड रीसेट',
+  fpEmailStep: 'अपना ईमेल दर्ज करें, हम रीसेट कोड भेजेंगे।',
+  fpResetStep: 'रीसेट कोड और नया पासवर्ड दर्ज करें।',
+  fpDoneStep: 'आपका पासवर्ड रीसेट हो गया है।',
+  resetCode: 'रीसेट कोड',
+  newPassword: 'नया पासवर्ड',
+  sendResetCode: 'रीसेट कोड भेजें',
+  passwordResetDone: 'पासवर्ड रीसेट!',
+  passwordResetDoneSub: 'अब आप नए पासवर्ड से लॉगिन कर सकते हैं।',
+  backToLogin: 'लॉगिन पर वापस',
+  pasteCode: 'कोड यहाँ पेस्ट करें',
+  home: 'होम',
+  courses: 'कोर्स',
+  tests: 'टेस्ट',
+  affairs: 'समाचार',
+  profile: 'प्रोफ़ाइल',
+  quickAccess: 'त्वरित पहुँच',
+  liveClasses: 'लाइव क्लासेस',
+  continueLearning: 'सीखना जारी रखें',
+  resume: 'जारी रखें',
+  complete: 'पूर्ण',
+  emptyContent: 'इस श्रेणी में अभी सामग्री नहीं है। जल्द ही देखें।',
+  performance: 'प्रदर्शन विश्लेषण',
+  badges: 'बैज और उपलब्धियाँ',
+  menu: 'मेन्यू',
+  settings: 'सेटिंग्स',
+  certificates: 'प्रमाणपत्र',
+  bookmarks: 'बुकमार्क',
+  downloads: 'डाउनलोड',
+  aiPlanner: 'AI अध्ययन योजना',
+  aiTutor: 'AI शिक्षक',
+  subscription: 'सदस्यता',
+  helpSupport: 'सहायता',
+  studyHours: 'अध्ययन घंटे',
+  testsTaken: 'टेस्ट',
+  accuracy: 'सटीकता',
+  rank: 'रैंक',
+  aiSuggestions: 'AI सुझाव',
+  dailyChallenge: 'दैनिक चुनौती',
+  fiveQ50Coins: '5 प्रश्न • 50 सिक्के',
+  boostStreak: 'आज की क्विज़ से अपनी स्ट्रीक बढ़ाएँ',
+  takeQuiz: 'क्विज़ लें',
+  leaderboard: 'लीडरबोर्ड',
+};
+
+const bn: Dict = {
+  continue: 'এগিয়ে যান',
+  cancel: 'বাতিল',
+  save: 'সংরক্ষণ',
+  loading: 'লোড হচ্ছে...',
+  retry: 'পুনরায় চেষ্টা',
+  seeAll: 'সব দেখুন',
+  search: 'অনুসন্ধান',
+  next: 'পরবর্তী',
+  previous: 'পূর্ববর্তী',
+  submit: 'জমা দিন',
+  back: 'ফিরে যান',
+  change: 'পরিবর্তন',
+  logout: 'লগ আউট',
+  language: 'ভাষা',
+  category: 'পরীক্ষা বিভাগ',
+  changeCategory: 'বিভাগ পরিবর্তন',
+  selectCategory: 'একটি বিভাগ নির্বাচন করুন',
+  welcome: 'স্বাগতম',
+  goodMorning: 'শুভ সকাল',
+  goodAfternoon: 'শুভ অপরাহ্ন',
+  goodEvening: 'শুভ সন্ধ্যা',
+  brandTag: 'প্রতিটি প্রতিযোগিতামূলক পরীক্ষার\nএকটাই গন্তব্য',
+  startJourney: 'আপনার যাত্রা শুরু করুন',
+  joinSub: 'আমাদের সাথে ১ লক্ষ+ শিক্ষার্থীর সাথে যোগ দিন',
+  createAccount: 'অ্যাকাউন্ট তৈরি করুন',
+  haveAccount: 'ইতিমধ্যে অ্যাকাউন্ট আছে',
+  agreeTerms: 'এগিয়ে গেলে আপনি আমাদের শর্তাবলী ও গোপনীয়তা নীতি মানছেন',
+  categoryTitle: 'আপনার পরীক্ষা বিভাগ',
+  categorySubtitle: 'আপনার লক্ষ্যের সাথে মিলে যায় এমন একটি বেছে নিন।\nপরে যেকোন সময় বদলাতে পারেন।',
+  categorySearchPlaceholder: 'ব্যাঙ্কিং, SSC, রেলওয়ে খুঁজুন...',
+  noCategoryFound: 'কোন বিভাগ পাওয়া যায়নি।',
+  createYourAccount: 'আপনার অ্যাকাউন্ট তৈরি করুন',
+  oneStepAway: 'শুধু একটি ধাপ বাকি',
+  selectedCategoryLabel: 'নির্বাচিত বিভাগ',
+  fullName: 'পুরো নাম',
+  emailAddress: 'ইমেইল',
+  mobileNumber: 'মোবাইল নম্বর',
+  password: 'পাসওয়ার্ড',
+  confirmPassword: 'পাসওয়ার্ড নিশ্চিত করুন',
+  passwordHint: 'ন্যূনতম ৬ অক্ষর',
+  reEnter: 'পাসওয়ার্ড আবার লিখুন',
+  alreadyAccount: 'ইতিমধ্যে অ্যাকাউন্ট আছে?',
+  login: 'লগইন',
+  errNameShort: 'সম্পূর্ণ নাম লিখুন।',
+  errEmail: 'সঠিক ইমেইল দিন।',
+  errPhone: 'সঠিক ১০ সংখ্যার মোবাইল নম্বর দিন।',
+  errPwShort: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষর হতে হবে।',
+  errPwMismatch: 'পাসওয়ার্ড মিলছে না।',
+  errCategoryMissing: 'প্রথমে একটি পরীক্ষা বিভাগ নির্বাচন করুন।',
+  signInSub: 'আপনার প্রস্তুতি চালিয়ে যেতে সাইন ইন করুন',
+  forgot: 'ভুলে গেছেন?',
+  yourPassword: 'আপনার পাসওয়ার্ড',
+  errLogin: 'লগইন ব্যর্থ। আবার চেষ্টা করুন।',
+  resetPassword: 'পাসওয়ার্ড রিসেট',
+  fpEmailStep: 'আপনার ইমেইল দিন, আমরা রিসেট কোড পাঠাব।',
+  fpResetStep: 'রিসেট কোড এবং নতুন পাসওয়ার্ড দিন।',
+  fpDoneStep: 'আপনার পাসওয়ার্ড রিসেট হয়েছে।',
+  resetCode: 'রিসেট কোড',
+  newPassword: 'নতুন পাসওয়ার্ড',
+  sendResetCode: 'রিসেট কোড পাঠান',
+  passwordResetDone: 'পাসওয়ার্ড রিসেট!',
+  passwordResetDoneSub: 'এখন নতুন পাসওয়ার্ড দিয়ে লগইন করুন।',
+  backToLogin: 'লগইন-এ ফিরে যান',
+  pasteCode: 'এখানে কোড পেস্ট করুন',
+  home: 'হোম',
+  courses: 'কোর্স',
+  tests: 'টেস্ট',
+  affairs: 'সংবাদ',
+  profile: 'প্রোফাইল',
+  quickAccess: 'দ্রুত অ্যাক্সেস',
+  liveClasses: 'লাইভ ক্লাস',
+  continueLearning: 'শেখা চালিয়ে যান',
+  resume: 'চালিয়ে যান',
+  complete: 'সম্পূর্ণ',
+  emptyContent: 'এই বিভাগে এখনও কোন সামগ্রী নেই।',
+  performance: 'পারফরম্যান্স বিশ্লেষণ',
+  badges: 'ব্যাজ ও অর্জন',
+  menu: 'মেন্যু',
+  settings: 'সেটিংস',
+  certificates: 'সার্টিফিকেট',
+  bookmarks: 'বুকমার্ক',
+  downloads: 'ডাউনলোড',
+  aiPlanner: 'AI স্টাডি প্ল্যানার',
+  aiTutor: 'AI টিউটর',
+  subscription: 'সাবস্ক্রিপশন',
+  helpSupport: 'সহায়তা',
+  studyHours: 'অধ্যয়ন সময়',
+  testsTaken: 'টেস্ট',
+  accuracy: 'নির্ভুলতা',
+  rank: 'র‍্যাঙ্ক',
+  aiSuggestions: 'AI পরামর্শ',
+  dailyChallenge: 'দৈনিক চ্যালেঞ্জ',
+  fiveQ50Coins: '৫ প্রশ্ন • ৫০ কয়েন',
+  boostStreak: 'আজকের কুইজে আপনার স্ট্রিক বাড়ান',
+  takeQuiz: 'কুইজ দিন',
+  leaderboard: 'লিডারবোর্ড',
+};
+
+const DICTS: Record<Lang, Dict> = { en, hi, bn };
+
+async function loadStoredLang(): Promise<Lang | null> {
+  try {
+    if (Platform.OS === 'web') return (window.localStorage.getItem(LANG_KEY) as Lang) || null;
+    return (await SecureStore.getItemAsync(LANG_KEY)) as Lang | null;
+  } catch { return null; }
+}
+
+async function storeLang(lang: Lang) {
+  try {
+    if (Platform.OS === 'web') window.localStorage.setItem(LANG_KEY, lang);
+    else await SecureStore.setItemAsync(LANG_KEY, lang);
+  } catch {}
+}
+
+type Ctx = {
+  lang: Lang;
+  setLang: (l: Lang, syncBackend?: boolean) => Promise<void>;
+  t: (key: string) => string;
+};
+const I18nContext = createContext<Ctx>({ lang: 'en', setLang: async () => {}, t: (k) => k });
+
+export function I18nProvider({ children }: { children: React.ReactNode }) {
+  const [lang, setLangState] = useState<Lang>('en');
+
+  useEffect(() => { loadStoredLang().then((l) => { if (l && DICTS[l]) setLangState(l); }); }, []);
+
+  const setLang = useCallback(async (l: Lang, syncBackend = true) => {
+    setLangState(l);
+    await storeLang(l);
+    if (syncBackend) {
+      try { await api.updateLanguage?.(l); } catch {}
+    }
+  }, []);
+
+  const t = useCallback((key: string) => DICTS[lang]?.[key] || DICTS.en[key] || key, [lang]);
+
+  return <I18nContext.Provider value={{ lang, setLang, t }}>{children}</I18nContext.Provider>;
+}
+
+export function useI18n() { return useContext(I18nContext); }

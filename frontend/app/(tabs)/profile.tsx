@@ -7,12 +7,14 @@ import { useRouter } from 'expo-router';
 import { theme } from '@/src/theme';
 import { api } from '@/src/api';
 import { useAuth } from '@/src/AuthContext';
+import { useI18n } from '@/src/i18n';
 
 const W = Dimensions.get('window').width;
 
 export default function Profile() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const { t } = useI18n();
   const [profile, setProfile] = useState<any>(null);
   const [perf, setPerf] = useState<any>(null);
 
@@ -40,7 +42,7 @@ export default function Profile() {
           <LinearGradient colors={[theme.colors.brand, theme.colors.brandDark]} style={StyleSheet.absoluteFill} />
           <View style={s.headContent}>
             <View style={s.headTop}>
-              <Text style={s.headTitle}>Profile</Text>
+              <Text style={s.headTitle}>{t('profile')}</Text>
               <Pressable testID="settings-btn" style={s.settingBtn}>
                 <Ionicons name="settings-outline" size={20} color="#FFF" />
               </Pressable>
@@ -68,7 +70,7 @@ export default function Profile() {
           </View>
         </SafeAreaView>
 
-        <Text style={s.section}>Performance Analytics</Text>
+        <Text style={s.section}>{t('performance')}</Text>
         {perf && (
           <View style={s.perfCard}>
             <View style={s.perfRow}>
@@ -113,7 +115,7 @@ export default function Profile() {
           </View>
         )}
 
-        <Text style={s.section}>Badges & Achievements</Text>
+        <Text style={s.section}>{t('badges')}</Text>
         <View style={s.badges}>
           {profile.badges.map((b: any) => (
             <View key={b.id} style={[s.badge, !b.earned && { opacity: 0.35 }]}>
@@ -125,17 +127,17 @@ export default function Profile() {
           ))}
         </View>
 
-        <Text style={s.section}>Menu</Text>
+        <Text style={s.section}>{t('menu')}</Text>
         <View style={s.menuList}>
           {[
-            { icon: 'ribbon-outline', label: 'Certificates', count: profile.certificates.length, onPress: () => {} },
-            { icon: 'bookmark-outline', label: 'Bookmarks', onPress: () => {} },
-            { icon: 'download-outline', label: 'Downloads', onPress: () => {} },
-            { icon: 'sparkles-outline', label: 'AI Study Planner', onPress: () => router.push('/planner') },
-            { icon: 'chatbubbles-outline', label: 'AI Tutor', onPress: () => router.push('/ai-tutor') },
-            { icon: 'card-outline', label: 'Subscription', onPress: () => {} },
-            { icon: 'help-circle-outline', label: 'Help & Support', onPress: () => {} },
-            { icon: 'log-out-outline', label: 'Logout', onPress: async () => { await signOut(); router.replace('/auth/welcome'); } },
+            { icon: 'ribbon-outline', label: t('certificates'), count: profile.certificates.length, onPress: () => {} },
+            { icon: 'bookmark-outline', label: t('bookmarks'), onPress: () => {} },
+            { icon: 'download-outline', label: t('downloads'), onPress: () => {} },
+            { icon: 'sparkles-outline', label: t('aiPlanner'), onPress: () => router.push('/planner') },
+            { icon: 'chatbubbles-outline', label: t('aiTutor'), onPress: () => router.push('/ai-tutor') },
+            { icon: 'card-outline', label: t('subscription'), onPress: () => {} },
+            { icon: 'help-circle-outline', label: t('helpSupport'), onPress: () => {} },
+            { icon: 'log-out-outline', label: t('logout'), onPress: async () => { await signOut(); router.replace('/auth/welcome'); } },
           ].map((m) => (
             <Pressable key={m.label} testID={`menu-${m.label}`} style={s.menuRow} onPress={m.onPress}>
               <View style={s.menuIcon}><Ionicons name={m.icon as any} size={20} color={theme.colors.brand} /></View>

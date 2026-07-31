@@ -1,7 +1,7 @@
 # Avision Institute - PRD
 
 ## Overview
-Premium mobile learning app for Indian competitive exam preparation (SSC, Banking, UPSC, Railway, Teaching, Law, Management, Defence, State Exams). Combines the strengths of Adda247, Physics Wallah, EduRev, BYJU'S, Unacademy, Testbook, and Oliveboard under a distinctive Avision Institute identity.
+Premium mobile learning app for Indian competitive exam preparation, driven by **Exam Categories** (Banking, SSC, Railway, Insurance, Defence, Police, Teaching, MBA, Law, UPSC, CUET, State Exams).
 
 ## Brand
 - Name: Avision Institute
@@ -10,90 +10,90 @@ Premium mobile learning app for Indian competitive exam preparation (SSC, Bankin
 - Design: Apple-inspired, glassmorphism, 20-24px rounded corners
 
 ## Tech Stack
-- Frontend: React Native (Expo Router SDK 54), TypeScript, expo-blur, expo-linear-gradient, expo-image, expo-secure-store
+- Frontend: React Native (Expo Router SDK 54), TypeScript
 - Backend: FastAPI + MongoDB (Motor async)
-- AI: Claude Sonnet 4.5 (Anthropic) via emergentintegrations & EMERGENT_LLM_KEY
-- Auth: JWT (PyJWT, HS256), bcrypt(12), tokens in expo-secure-store (native) / localStorage (web)
+- AI: Claude Sonnet 4.5 via emergentintegrations & EMERGENT_LLM_KEY
+- Auth: JWT (PyJWT HS256, 30-day), bcrypt(12), expo-secure-store / localStorage
 
-## Auth Flow (added in Iteration 2)
-1. **/auth/welcome** — Landing screen with Create Account + Login options.
-2. **/auth/course-select** — Step 1 of registration: mandatory course selection from active courses. Card highlights on select; Continue disabled until picked.
-3. **/auth/register** — Step 2: Name, Email, Phone (+91), Password, Confirm Password. Client + server validation. On success → auto-login → home. Selected course is saved as `course_id` on the user.
-4. **/auth/login** — Email + Password → JWT. Forgot Password link.
-5. **/auth/forgot-password** — Enter email → mock reset token surfaced in UI → paste token + new password → reset done → back to login.
-6. Route guarding: `_layout.tsx` redirects unauthenticated users to `/auth/welcome`; authenticated users away from `/auth/*` to `/(tabs)`.
-7. Logout available in Profile menu → clears token & redirects to welcome.
+## Architecture — Exam Category driven
+- `exam_categories` collection: 12 seeded categories, each with slug/icon/color/banner/status/display_order.
+- `exams` collection: many-to-one to categories, each with slug/status/display_order.
+- `users` collection: `category_id`, `selected_exam_id` (optional), `language` (en/hi/bn), plus name/email/password/phone/coins/xp/streak/level/referral_code.
+- All content endpoints support `?category=<id>` filter. Content with `category_id: None` is treated as universal.
+- Admin CRUD endpoints for categories & exams — ready for a web/mobile admin UI.
 
-Security features: bcrypt rounds=12, 72-byte password enforcement, 5-failed-attempts → 15-min account lockout, dummy-hash check against timing attacks on unknown emails, revoked-JTI store, TTL indexes for token cleanup, no `_id` leakage.
+## Registration Flow (rewritten)
+1. **Welcome** — brand hero + Create Account / I already have an account.
+2. **Category Select (`/auth/category-select`)** — beautiful grid of 12 category cards with icon + name + top-3-exams subtitle + live search box. Selected card gets blue background + checkmark badge. Continue button disabled until pick.
+3. **Register (`/auth/register`)** — chip showing selected category (with Change link) + Name, Email, Phone (+91 with 10-digit validation), Password, Confirm Password.
+4. On success → auto-login → home; `category_id`, `language`, and 100-coin welcome bonus saved on the user.
 
-## Screens Implemented
-### Tabs (protected)
-1. **Home Dashboard** — Personalized greeting (uses logged-in user name & real coins/xp/streak), rotating search, Continue Learning hero, Quick Access grid, Live Classes, all 9 exam categories with ~60 sub-exams
-2. **Video Courses** — Netflix-style
-3. **Test Series** — Daily Challenge + Mocks + Leaderboard
-4. **Current Affairs** — Newspaper style
-5. **Profile** — Real user data (name, email), XP/Coins/Streak/Level, performance chart, subject strength bars, AI Suggestions, badges, menu with **Logout**
+## Header (Home)
+- Time-aware localized greeting + user first name
+- **Exam Category dropdown** chip → opens bottom-sheet with search + 12 categories, tap to switch
+- **Language dropdown** chip → English / हिन्दी / বাংলা with flags
+- Streak chip + Coins chip
+- Category & language change refresh Home content immediately and persist across reloads (localStorage + backend sync)
+
+## i18n
+- Provider: `/app/frontend/src/i18n.tsx`
+- ~90 key strings translated in English, Hindi, Bengali
+- Covers: navigation labels, greetings, welcome/register/login/forgot-password flows, home sections, profile menu, tests page, error messages
+- Selected language persisted locally and mirrored to `/api/auth/update-language` for logged-in users
+
+## Content Filtering
+Every listing endpoint accepts `?category=<slug>` — courses, live classes, mock tests, current affairs. Frontend `CategoryContext` centralizes selected category and threads it through all API calls. Content tagged with `category_id: None` (e.g. general daily current affairs) is visible in every category.
+
+## Backend Endpoints (added / updated)
+### Categories (new)
+- `GET  /api/exam-categories/active?search=` — active list with search + subtitles
+- `GET  /api/exam-categories/all` — all (including inactive) for admin
+- `GET  /api/exam-categories/{id}` — detail with exams
+- `GET  /api/exams-by-category/{cid}` — exams under a category
+
+### Admin (new, no auth-gate yet — see next steps)
+- `POST/PUT/DELETE /api/admin/categories[/id]`
+- `POST/PUT/DELETE /api/admin/exams[/id]` — validates parent category
+
+### Auth (updated)
+- `POST /api/auth/register` — now accepts `category_id` (new) OR `course_id` (legacy) + `language` field
+- `POST /api/auth/update-category` — Bearer required
+- `POST /api/auth/update-language` — Bearer required
+- Everything else unchanged and passing tests
+
+### Content (updated, backward compatible)
+- All content endpoints accept `?category=<slug>` filter
+- Old signatures still work (no filter → returns all)
+
+## Screens
+### Auth
+- Welcome, **Category Select** (new grid), Register, Login, Forgot Password (all localized)
+
+### Tabs
+- Home (header dropdowns, category-filtered content)
+- Courses (category filter)
+- Tests (category filter, daily challenge, leaderboard)
+- Current Affairs
+- Profile (logout, all menu labels localized)
 
 ### Detail / modals
-6. Exam Detail (11 tabs)
-7. Course Detail
-8. AI Tutor chat (Claude Sonnet 4.5)
-9. AI Study Planner
-10. Daily Quiz with per-question review
-11. Live Class player with chat + Raise Hand
-
-### Auth (new)
-12. Welcome
-13. Course Select (Step 1)
-14. Register (Step 2)
-15. Login
-16. Forgot Password
-
-## Backend Endpoints
-### Auth (new)
-- `POST /api/auth/register` — creates user (welcome bonus 100 coins, referral_code generated)
-- `POST /api/auth/login` — issues 30-day JWT
-- `GET  /api/auth/me` — current user (Bearer)
-- `POST /api/auth/logout` — revokes JTI
-- `POST /api/auth/forgot-password` — returns mock reset token (dev)
-- `POST /api/auth/reset-password` — resets password
-- `POST /api/auth/update-course` — change selected course (Bearer)
-
-### Courses / content
-- `GET /api/courses` — all courses
-- `GET /api/courses/active` — active only (for course-select step)
-- `GET /api/courses/{id}`
-- `GET /api/exam-categories`, `GET /api/exams/{id}`
-- `GET /api/live-classes`
-- `GET /api/current-affairs`, `GET /api/current-affairs/{id}`
-- `GET /api/daily-quiz`, `POST /api/quiz/submit`
-- `GET /api/mock-tests`, `GET /api/leaderboard`
-- `GET /api/profile` (mock dashboard), `GET /api/performance`
-- `GET /api/greeting` — Bearer-aware (uses logged-in user data if provided)
-- `GET /api/quick-access`
-
-### AI
-- `POST /api/ai/chat` — multi-turn Claude Sonnet 4.5
-- `GET /api/ai/history/{session_id}`
-- `POST /api/ai/reset/{session_id}`
-- `POST /api/study-planner`
-
-## Data Model
-### users collection
-`user_id, name, email (unique), password_hash, phone, course_id, auth_provider, coins, xp, streak, level, referral_code (unique), referred_by, created_at, failed_login_attempts, lock_until, last_login_at`
-
-### Supporting collections
-- `revoked_tokens` (TTL: exp)
-- `password_reset_tokens` (TTL: exp)
-- `chat_messages` (AI tutor history)
+- Exam Detail (11 tabs), Course Detail, AI Tutor (Claude Sonnet 4.5), AI Study Planner, Daily Quiz, Live Class player
 
 ## Testing Summary
-- Iteration 1: 25/25 backend tests PASS + all critical frontend flows PASS
-- Iteration 2 (Auth): 33/33 backend tests PASS + all auth frontend flows PASS
+- Iteration 1: 25/25 backend tests PASS + full frontend flows PASS
+- Iteration 2 (Auth): 33/33 backend tests PASS + full auth frontend PASS
+- Iteration 3 (Category arch): **87/87 backend tests PASS** (25 base + 33 auth + 29 categories) + full frontend PASS including:
+  - Category grid rendering + search filter
+  - Register with category_id auto-login
+  - Header language switch → UI re-renders in Hindi
+  - Header category switch → Home content refreshes
+  - Category + language persist across app reload
 
 ## Not Built (still deferred)
-- Emergent Google Sign-In (only email/password JWT for now — user can revisit later)
-- Razorpay payment (awaiting user's test keys)
-- Persistent per-user quiz attempt history / real leaderboard (currently static)
-- Refer & Earn — referral_code is generated per user but the redemption flow (200-coin credit + `referred_by` handling on register) is not yet wired end-to-end. Backend has the field but UI is not exposed. Next iteration.
-- Push notifications, offline downloads, admin panel, multi-language
+- **Admin UI** — CRUD endpoints exist and are unit-tested, but a full mobile admin panel isn't built. Recommended: build a lightweight web admin (React/Next) that hits the same `/api/admin/*` endpoints.
+- Admin auth-gating: the `/api/admin/*` endpoints are OPEN in this MVP. **Before production**, add a role check (add `role: "admin"` on user + `require_admin` dependency).
+- Emergent Google Sign-In (still email/password JWT only)
+- Razorpay subscription (awaiting user's test keys)
+- Persistent per-user quiz history / real leaderboard
+- Refer & Earn redemption UI
+- Push notifications, offline downloads, multi-language for AI chat replies

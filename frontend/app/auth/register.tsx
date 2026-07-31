@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { theme } from '@/src/theme';
 import { api } from '@/src/api';
 import { useAuth } from '@/src/AuthContext';
+import { useI18n } from '@/src/i18n';
+import { useCategory } from '@/src/CategoryContext';
 
 export default function Register() {
-  const params = useLocalSearchParams<{ course_id?: string }>();
+  const params = useLocalSearchParams<{ category_id?: string }>();
   const router = useRouter();
   const { signInWithToken } = useAuth();
-  const [course, setCourse] = useState<any>(null);
+  const { setCategoryId } = useCategory();
+  const { t, lang } = useI18n();
+  const [category, setCategory] = useState<any>(null);
   const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', confirm: '' });
   const [showPw, setShowPw] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -20,19 +23,19 @@ export default function Register() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!params.course_id) { router.replace('/auth/course-select'); return; }
-    api.courseDetail(params.course_id).then(setCourse).catch(() => {});
-  }, [params.course_id]);
+    if (!params.category_id) { router.replace('/auth/category-select'); return; }
+    api.categoryDetail(params.category_id).then(setCategory).catch(() => {});
+  }, [params.category_id]);
 
   const update = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const validate = () => {
-    if (!params.course_id) return 'Please select a course first.';
-    if (form.name.trim().length < 2) return 'Please enter your full name.';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return 'Please enter a valid email address.';
-    if (!/^[6-9]\d{9}$/.test(form.phone.trim())) return 'Enter a valid 10-digit Indian mobile number.';
-    if (form.password.length < 6) return 'Password must be at least 6 characters.';
-    if (form.password !== form.confirm) return 'Passwords do not match.';
+    if (!params.category_id) return t('errCategoryMissing');
+    if (form.name.trim().length < 2) return t('errNameShort');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return t('errEmail');
+    if (!/^[6-9]\d{9}$/.test(form.phone.trim())) return t('errPhone');
+    if (form.password.length < 6) return t('errPwShort');
+    if (form.password !== form.confirm) return t('errPwMismatch');
     return null;
   };
 
@@ -45,8 +48,10 @@ export default function Register() {
         email: form.email.trim().toLowerCase(),
         password: form.password,
         phone: form.phone.trim(),
-        course_id: params.course_id!,
+        category_id: params.category_id!,
+        language: lang,
       });
+      await setCategoryId(params.category_id!, false);
       await signInWithToken(res.access_token, res.user);
       router.replace('/(tabs)');
     } catch (e: any) {
@@ -68,32 +73,32 @@ export default function Register() {
           </View>
           <View style={{ width: 38 }} />
         </View>
-        <Text style={s.title}>Create your account</Text>
-        <Text style={s.subtitle}>You're just one step away</Text>
+        <Text style={s.title}>{t('createYourAccount')}</Text>
+        <Text style={s.subtitle}>{t('oneStepAway')}</Text>
       </SafeAreaView>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
-          {course && (
-            <View style={s.courseChip}>
-              <View style={s.chipThumb}>
-                <Image source={{ uri: course.thumbnail }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+          {category && (
+            <View style={s.catChip}>
+              <View style={[s.chipIcon, { backgroundColor: theme.colors.brandTertiary }]}>
+                <Ionicons name={category.icon} size={20} color={theme.colors.brand} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.chipLabel}>SELECTED COURSE</Text>
-                <Text style={s.chipTitle} numberOfLines={1}>{course.title}</Text>
+                <Text style={s.chipLabel}>{t('selectedCategoryLabel')}</Text>
+                <Text style={s.chipTitle} numberOfLines={1}>{category.name}</Text>
               </View>
-              <Pressable testID="change-course" style={s.chipChange} onPress={() => router.back()}>
-                <Text style={s.chipChangeTxt}>Change</Text>
+              <Pressable testID="change-category" style={s.chipChange} onPress={() => router.back()}>
+                <Text style={s.chipChangeTxt}>{t('change')}</Text>
               </Pressable>
             </View>
           )}
 
-          <Field label="Full Name" icon="person-outline" value={form.name} onChangeText={(t) => update('name', t)} placeholder="Aarav Sharma" testID="reg-name" autoCapitalize="words" />
-          <Field label="Email Address" icon="mail-outline" value={form.email} onChangeText={(t) => update('email', t)} placeholder="you@email.com" testID="reg-email" keyboardType="email-address" autoCapitalize="none" />
-          <Field label="Mobile Number" icon="call-outline" value={form.phone} onChangeText={(t) => update('phone', t.replace(/\D/g, '').slice(0, 10))} placeholder="9876543210" testID="reg-phone" keyboardType="number-pad" maxLength={10} prefix="+91" />
-          <Field label="Password" icon="lock-closed-outline" value={form.password} onChangeText={(t) => update('password', t)} placeholder="Minimum 6 characters" testID="reg-password" secureTextEntry={!showPw} toggle={{ show: showPw, onPress: () => setShowPw((v) => !v) }} />
-          <Field label="Confirm Password" icon="lock-closed-outline" value={form.confirm} onChangeText={(t) => update('confirm', t)} placeholder="Re-enter password" testID="reg-confirm" secureTextEntry={!showConfirm} toggle={{ show: showConfirm, onPress: () => setShowConfirm((v) => !v) }} />
+          <Field label={t('fullName')} icon="person-outline" value={form.name} onChangeText={(t: string) => update('name', t)} placeholder="Aarav Sharma" testID="reg-name" autoCapitalize="words" />
+          <Field label={t('emailAddress')} icon="mail-outline" value={form.email} onChangeText={(t: string) => update('email', t)} placeholder="you@email.com" testID="reg-email" keyboardType="email-address" autoCapitalize="none" />
+          <Field label={t('mobileNumber')} icon="call-outline" value={form.phone} onChangeText={(t: string) => update('phone', t.replace(/\D/g, '').slice(0, 10))} placeholder="9876543210" testID="reg-phone" keyboardType="number-pad" maxLength={10} prefix="+91" />
+          <Field label={t('password')} icon="lock-closed-outline" value={form.password} onChangeText={(t: string) => update('password', t)} placeholder={t('passwordHint')} testID="reg-password" secureTextEntry={!showPw} toggle={{ show: showPw, onPress: () => setShowPw((v) => !v) }} />
+          <Field label={t('confirmPassword')} icon="lock-closed-outline" value={form.confirm} onChangeText={(t: string) => update('confirm', t)} placeholder={t('reEnter')} testID="reg-confirm" secureTextEntry={!showConfirm} toggle={{ show: showConfirm, onPress: () => setShowConfirm((v) => !v) }} />
 
           {err && (
             <View testID="reg-error" style={s.errBox}>
@@ -105,16 +110,16 @@ export default function Register() {
           <Pressable testID="reg-submit" style={[s.cta, submitting && { opacity: 0.7 }]} onPress={submit} disabled={submitting}>
             {submitting ? <ActivityIndicator color="#FFF" /> : (
               <>
-                <Text style={s.ctaTxt}>Create Account</Text>
+                <Text style={s.ctaTxt}>{t('createAccount')}</Text>
                 <Ionicons name="arrow-forward" size={18} color="#FFF" />
               </>
             )}
           </Pressable>
 
           <View style={s.loginRow}>
-            <Text style={s.loginQ}>Already have an account?</Text>
+            <Text style={s.loginQ}>{t('alreadyAccount')}</Text>
             <Pressable testID="reg-goto-login" onPress={() => router.replace('/auth/login')}>
-              <Text style={s.loginLink}>Login</Text>
+              <Text style={s.loginLink}>{t('login')}</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -160,14 +165,13 @@ const s = StyleSheet.create({
   stepDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: theme.colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' },
   stepDotActive: { backgroundColor: theme.colors.brand },
   stepDotDone: { backgroundColor: theme.colors.success },
-  stepTxt: { fontSize: 12, fontWeight: '800', color: theme.colors.muted },
   stepTxtActive: { fontSize: 12, fontWeight: '800', color: '#FFF' },
   stepLine: { width: 24, height: 2, backgroundColor: theme.colors.border },
   stepLineActive: { backgroundColor: theme.colors.success },
   title: { fontSize: 24, fontWeight: '800', color: theme.colors.onSurface, marginTop: 14 },
   subtitle: { fontSize: 13, color: theme.colors.muted, marginTop: 4 },
-  courseChip: { flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: theme.colors.brandTertiary, borderRadius: 16, padding: 10 },
-  chipThumb: { width: 46, height: 46, borderRadius: 10, overflow: 'hidden', backgroundColor: '#111' },
+  catChip: { flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: theme.colors.brandTertiary, borderRadius: 16, padding: 12 },
+  chipIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   chipLabel: { fontSize: 10, fontWeight: '800', color: theme.colors.brand, letterSpacing: 0.5 },
   chipTitle: { fontSize: 13, fontWeight: '700', color: theme.colors.onSurface, marginTop: 2 },
   chipChange: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: '#FFF' },

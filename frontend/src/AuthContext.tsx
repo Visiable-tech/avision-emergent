@@ -7,6 +7,9 @@ export type User = {
   name: string;
   email: string;
   phone?: string;
+  category_id?: string;
+  selected_exam_id?: string;
+  language?: string;
   course_id?: string;
   auth_provider?: string;
   coins?: number;
@@ -22,14 +25,13 @@ type Ctx = {
   refresh: () => Promise<void>;
   signInWithToken: (token: string, user: User) => Promise<void>;
   signOut: () => Promise<void>;
+  patchUser: (patch: Partial<User>) => void;
 };
 
 const AuthContext = createContext<Ctx>({
-  user: null,
-  loading: true,
-  refresh: async () => {},
-  signInWithToken: async () => {},
-  signOut: async () => {},
+  user: null, loading: true,
+  refresh: async () => {}, signInWithToken: async () => {}, signOut: async () => {},
+  patchUser: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -63,8 +65,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const patchUser = useCallback((patch: Partial<User>) => {
+    setUser((u) => (u ? { ...u, ...patch } : u));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, refresh, signInWithToken, signOut }}>
+    <AuthContext.Provider value={{ user, loading, refresh, signInWithToken, signOut, patchUser }}>
       {children}
     </AuthContext.Provider>
   );

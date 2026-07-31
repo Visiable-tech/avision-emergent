@@ -9,11 +9,16 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { theme } from '@/src/theme';
 import { api } from '@/src/api';
+import { useI18n } from '@/src/i18n';
+import { useCategory } from '@/src/CategoryContext';
+import { HeaderDropdowns } from '@/src/components/HeaderDropdowns';
 
 const SEARCH_ROTATE = ['SSC CGL', 'Banking', 'CLAT', 'CUET', 'IPMAT', 'UPSC'];
 
 export default function Home() {
   const router = useRouter();
+  const { t } = useI18n();
+  const { categoryId, category } = useCategory();
   const [greeting, setGreeting] = useState<any>(null);
   const [quick, setQuick] = useState<any[]>([]);
   const [cats, setCats] = useState<any[]>([]);
@@ -25,13 +30,17 @@ export default function Home() {
   const load = async () => {
     try {
       const [g, q, c, co, lv] = await Promise.all([
-        api.greeting(), api.quickAccess(), api.examCategories(), api.courses(), api.liveClasses(),
+        api.greeting(),
+        api.quickAccess(),
+        api.examCategories(),
+        api.courses(categoryId || undefined),
+        api.liveClasses(categoryId || undefined),
       ]);
       setGreeting(g); setQuick(q.items); setCats(c.categories); setCourses(co.courses); setLive(lv.classes);
     } catch (e) { console.warn(e); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); /* re-run when category changes */ }, [categoryId]);
   useEffect(() => {
     const t = setInterval(() => setPlaceholderIdx((i) => (i + 1) % SEARCH_ROTATE.length), 2000);
     return () => clearInterval(t);
@@ -44,6 +53,12 @@ export default function Home() {
     router.push('/ai-tutor');
   };
 
+  // Localized greeting label
+  const greetingLabel = greeting?.greeting_key === 'morning' ? t('goodMorning')
+    : greeting?.greeting_key === 'afternoon' ? t('goodAfternoon')
+    : greeting?.greeting_key === 'evening' ? t('goodEvening')
+    : greeting?.greeting || t('goodMorning');
+
   const continueCourse = courses[0];
 
   return (
@@ -52,9 +67,10 @@ export default function Home() {
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.greeting} testID="home-greeting">
-              {greeting?.greeting || 'Good Morning'} 
+              {greetingLabel}
             </Text>
-            <Text style={styles.welcome}>Welcome back, {greeting?.name || 'Student'}</Text>
+            <Text style={styles.welcome}>{t('welcome')}, {greeting?.name || 'Student'}</Text>
+            <HeaderDropdowns />
           </View>
           <Pressable testID="header-streak" style={styles.streakChip} onPress={() => router.push('/(tabs)/profile')}>
             <Ionicons name="flame" size={16} color={theme.colors.gold} />
@@ -113,7 +129,7 @@ export default function Home() {
         )}
 
         {/* Quick Access Grid */}
-        <Text style={styles.sectionTitle}>Quick Access</Text>
+        <Text style={styles.sectionTitle}>{t('quickAccess')}</Text>
         <View style={styles.quickGrid}>
           {quick.map((q: any) => (
             <Pressable
@@ -143,8 +159,8 @@ export default function Home() {
         {live.length > 0 && (
           <>
             <View style={styles.sectionRow}>
-              <Text style={styles.sectionTitle}>Live Classes</Text>
-              <Text style={styles.seeAll}>See all</Text>
+              <Text style={styles.sectionTitle}>{t('liveClasses')}</Text>
+              <Text style={styles.seeAll}>{t('seeAll')}</Text>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScrollPad}>
               {live.map((l: any) => (

@@ -254,7 +254,8 @@ class TestExistingEndpoints:
     def test_endpoint_ok(self, sess, path):
         r = sess.get(f"{API}{path}", timeout=15)
         assert r.status_code == 200, f"{path} -> {r.status_code}"
-        assert "_id" not in r.text  # no leak
+        # Ensure Mongo _id key is not leaked (must not appear as JSON key `"_id"`)
+        assert '"_id"' not in r.text  # no leak
 
     def test_exam_detail(self, sess):
         r = sess.get(f"{API}/exams/ibps-po", timeout=15)
