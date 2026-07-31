@@ -1,55 +1,99 @@
 # Avision Institute - PRD
 
 ## Overview
-A premium mobile learning app for Indian competitive exam preparation. Combines the strengths of Adda247, Physics Wallah, EduRev, BYJU'S, Unacademy, Testbook, and Oliveboard under a distinctive Avision Institute identity.
+Premium mobile learning app for Indian competitive exam preparation (SSC, Banking, UPSC, Railway, Teaching, Law, Management, Defence, State Exams). Combines the strengths of Adda247, Physics Wallah, EduRev, BYJU'S, Unacademy, Testbook, and Oliveboard under a distinctive Avision Institute identity.
 
 ## Brand
 - Name: Avision Institute
 - Tagline: One Destination for Every Competitive Exam
 - Colors: Royal Blue (#0B4DB8), Copper Gold (#C68A2D), Clean White
-- Design: Apple-inspired, premium glassmorphism, 20-24px rounded corners
+- Design: Apple-inspired, glassmorphism, 20-24px rounded corners
 
 ## Tech Stack
-- Frontend: React Native (Expo Router), TypeScript, expo-blur, expo-linear-gradient, expo-image
+- Frontend: React Native (Expo Router SDK 54), TypeScript, expo-blur, expo-linear-gradient, expo-image, expo-secure-store
 - Backend: FastAPI + MongoDB (Motor async)
 - AI: Claude Sonnet 4.5 (Anthropic) via emergentintegrations & EMERGENT_LLM_KEY
+- Auth: JWT (PyJWT, HS256), bcrypt(12), tokens in expo-secure-store (native) / localStorage (web)
+
+## Auth Flow (added in Iteration 2)
+1. **/auth/welcome** — Landing screen with Create Account + Login options.
+2. **/auth/course-select** — Step 1 of registration: mandatory course selection from active courses. Card highlights on select; Continue disabled until picked.
+3. **/auth/register** — Step 2: Name, Email, Phone (+91), Password, Confirm Password. Client + server validation. On success → auto-login → home. Selected course is saved as `course_id` on the user.
+4. **/auth/login** — Email + Password → JWT. Forgot Password link.
+5. **/auth/forgot-password** — Enter email → mock reset token surfaced in UI → paste token + new password → reset done → back to login.
+6. Route guarding: `_layout.tsx` redirects unauthenticated users to `/auth/welcome`; authenticated users away from `/auth/*` to `/(tabs)`.
+7. Logout available in Profile menu → clears token & redirects to welcome.
+
+Security features: bcrypt rounds=12, 72-byte password enforcement, 5-failed-attempts → 15-min account lockout, dummy-hash check against timing attacks on unknown emails, revoked-JTI store, TTL indexes for token cleanup, no `_id` leakage.
 
 ## Screens Implemented
-1. **Home Dashboard** (`/(tabs)/index`) — Personalized greeting, streak/coins chips, rotating search bar, Continue Learning hero card with progress, 12-tile Quick Access grid, Live Classes horizontal scroll, all 9 Exam Categories with sub-exams
-2. **Video Courses** (`/(tabs)/courses`) — Subject filter chips, Live-now horizontal strip, Netflix-style course cards with rating/progress
-3. **Test Series** (`/(tabs)/tests`) — Daily Challenge hero, filter chips (Full Mock/Sectional/PYQ), mock test list, leaderboard (with "You" highlighted)
-4. **Current Affairs** (`/(tabs)/current-affairs`) — Newspaper style: featured hero + category chips + news list
-5. **Profile** (`/(tabs)/profile`) — Gradient header (XP/Coins/Streak/Level), Performance analytics with weekly-hours bar chart & subject-strength bars, AI Suggestions, badges, menu
-6. **Exam Detail** (`/exam/[id]`) — Hero gradient banner, 11 pinned tabs (Overview, Eligibility, Salary, Syllabus, Pattern, Books, Strategy, Cutoffs, PYQ, Roadmap, FAQs), sticky "Start AI Preparation" CTA
-7. **Course Detail** (`/course/[id]`) — Full player mock, instructor card, progress, lesson list with checkmarks, Notes / Discussion tabs
-8. **AI Tutor** (`/ai-tutor`) — Full chat UI, quick prompts, persistent history in MongoDB, streaming via Claude Sonnet 4.5
-9. **AI Study Planner** (`/planner`) — Exam / hours / weak-subjects / target-date inputs → markdown plan from Claude
-10. **Daily Quiz** (`/quiz`) — Timed 5-Q flow, prev/next nav, submit → results screen with score, accuracy, coins/XP, question-wise review with explanations
-11. **Live Class** (`/live/[id]`) — Player mock with LIVE badge + viewers, action row (Raise Hand, Polls, Notes, Save), live chat with send
+### Tabs (protected)
+1. **Home Dashboard** — Personalized greeting (uses logged-in user name & real coins/xp/streak), rotating search, Continue Learning hero, Quick Access grid, Live Classes, all 9 exam categories with ~60 sub-exams
+2. **Video Courses** — Netflix-style
+3. **Test Series** — Daily Challenge + Mocks + Leaderboard
+4. **Current Affairs** — Newspaper style
+5. **Profile** — Real user data (name, email), XP/Coins/Streak/Level, performance chart, subject strength bars, AI Suggestions, badges, menu with **Logout**
+
+### Detail / modals
+6. Exam Detail (11 tabs)
+7. Course Detail
+8. AI Tutor chat (Claude Sonnet 4.5)
+9. AI Study Planner
+10. Daily Quiz with per-question review
+11. Live Class player with chat + Raise Hand
+
+### Auth (new)
+12. Welcome
+13. Course Select (Step 1)
+14. Register (Step 2)
+15. Login
+16. Forgot Password
 
 ## Backend Endpoints
-- `GET /api/greeting` — greeting + streak/coins/xp
-- `GET /api/quick-access` — 12 tiles
-- `GET /api/exam-categories` — 9 groups, ~60 exams
-- `GET /api/exams/{id}` — full exam detail
-- `GET /api/courses`, `GET /api/courses/{id}`
+### Auth (new)
+- `POST /api/auth/register` — creates user (welcome bonus 100 coins, referral_code generated)
+- `POST /api/auth/login` — issues 30-day JWT
+- `GET  /api/auth/me` — current user (Bearer)
+- `POST /api/auth/logout` — revokes JTI
+- `POST /api/auth/forgot-password` — returns mock reset token (dev)
+- `POST /api/auth/reset-password` — resets password
+- `POST /api/auth/update-course` — change selected course (Bearer)
+
+### Courses / content
+- `GET /api/courses` — all courses
+- `GET /api/courses/active` — active only (for course-select step)
+- `GET /api/courses/{id}`
+- `GET /api/exam-categories`, `GET /api/exams/{id}`
 - `GET /api/live-classes`
 - `GET /api/current-affairs`, `GET /api/current-affairs/{id}`
-- `GET /api/daily-quiz`
-- `POST /api/quiz/submit` — scoring + coin/XP earnings
-- `GET /api/mock-tests`
-- `GET /api/leaderboard`
-- `GET /api/profile`
-- `GET /api/performance` — weekly hours, subject strength, AI suggestions
+- `GET /api/daily-quiz`, `POST /api/quiz/submit`
+- `GET /api/mock-tests`, `GET /api/leaderboard`
+- `GET /api/profile` (mock dashboard), `GET /api/performance`
+- `GET /api/greeting` — Bearer-aware (uses logged-in user data if provided)
+- `GET /api/quick-access`
+
+### AI
 - `POST /api/ai/chat` — multi-turn Claude Sonnet 4.5
 - `GET /api/ai/history/{session_id}`
 - `POST /api/ai/reset/{session_id}`
-- `POST /api/study-planner` — AI-generated markdown plan
+- `POST /api/study-planner`
 
-## Not Implemented (MVP scope)
-- Firebase auth / Google / Apple sign-in (mock student profile used)
-- Razorpay payment integration (UI only, no charge)
-- Push notifications
-- Offline downloads (UI only)
-- Admin panel (out of MVP scope)
-- Multi-language (English only)
+## Data Model
+### users collection
+`user_id, name, email (unique), password_hash, phone, course_id, auth_provider, coins, xp, streak, level, referral_code (unique), referred_by, created_at, failed_login_attempts, lock_until, last_login_at`
+
+### Supporting collections
+- `revoked_tokens` (TTL: exp)
+- `password_reset_tokens` (TTL: exp)
+- `chat_messages` (AI tutor history)
+
+## Testing Summary
+- Iteration 1: 25/25 backend tests PASS + all critical frontend flows PASS
+- Iteration 2 (Auth): 33/33 backend tests PASS + all auth frontend flows PASS
+
+## Not Built (still deferred)
+- Emergent Google Sign-In (only email/password JWT for now — user can revisit later)
+- Razorpay payment (awaiting user's test keys)
+- Persistent per-user quiz attempt history / real leaderboard (currently static)
+- Refer & Earn — referral_code is generated per user but the redemption flow (200-coin credit + `referred_by` handling on register) is not yet wired end-to-end. Backend has the field but UI is not exposed. Next iteration.
+- Push notifications, offline downloads, admin panel, multi-language
