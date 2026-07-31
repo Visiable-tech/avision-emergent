@@ -227,6 +227,7 @@ COURSES = [
         "students": 42350,
         "duration_hours": 240,
         "progress": 0.42,
+        "active": True,
         "thumbnail": "https://images.unsplash.com/photo-1509228468518-180dd4864904?w=800&q=80",
         "chapters": [
             {"id": "c1", "title": "Number System Fundamentals", "duration": "42 min", "watched": True},
@@ -245,6 +246,7 @@ COURSES = [
         "students": 68120,
         "duration_hours": 310,
         "progress": 0.18,
+        "active": True,
         "thumbnail": "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&q=80",
         "chapters": [
             {"id": "b1", "title": "Banking Awareness Basics", "duration": "38 min", "watched": True},
@@ -262,6 +264,7 @@ COURSES = [
         "students": 29450,
         "duration_hours": 420,
         "progress": 0.0,
+        "active": True,
         "thumbnail": "https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&q=80",
         "chapters": [
             {"id": "u1", "title": "Indian Polity – Constitution", "duration": "1 hr 12 min", "watched": False},
@@ -278,10 +281,42 @@ COURSES = [
         "students": 15320,
         "duration_hours": 180,
         "progress": 0.0,
+        "active": True,
         "thumbnail": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&q=80",
         "chapters": [
             {"id": "l1", "title": "Legal Reasoning Basics", "duration": "45 min", "watched": False},
             {"id": "l2", "title": "Logical Reasoning", "duration": "52 min", "watched": False},
+        ],
+    },
+    {
+        "id": "rrb-ntpc-2026",
+        "title": "RRB NTPC Complete Course 2026",
+        "instructor": "Sanjeev Yadav",
+        "subject": "Railway",
+        "rating": 4.7,
+        "students": 38900,
+        "duration_hours": 220,
+        "progress": 0.0,
+        "active": True,
+        "thumbnail": "https://images.unsplash.com/photo-1474487548417-781cb71495f3?w=800&q=80",
+        "chapters": [
+            {"id": "r1", "title": "General Awareness Foundation", "duration": "50 min", "watched": False},
+            {"id": "r2", "title": "Quant – Arithmetic Basics", "duration": "1 hr 05 min", "watched": False},
+        ],
+    },
+    {
+        "id": "ctet-2026",
+        "title": "CTET Paper I & II Mastery 2026",
+        "instructor": "Meera Iyer",
+        "subject": "Teaching",
+        "rating": 4.8,
+        "students": 22140,
+        "duration_hours": 160,
+        "progress": 0.0,
+        "active": True,
+        "thumbnail": "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800&q=80",
+        "chapters": [
+            {"id": "t1", "title": "Child Development & Pedagogy", "duration": "1 hr", "watched": False},
         ],
     },
 ]

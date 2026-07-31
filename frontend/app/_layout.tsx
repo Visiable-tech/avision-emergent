@@ -1,15 +1,58 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { LogBox, StatusBar } from 'react-native';
+import { ActivityIndicator, LogBox, StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { useIconFonts } from '@/src/hooks/use-icon-fonts';
+import { AuthProvider, useAuth } from '@/src/AuthContext';
+import { theme } from '@/src/theme';
 
 LogBox.ignoreAllLogs(true);
-
 SplashScreen.preventAutoHideAsync();
+
+function useProtectedRoute() {
+  const { user, loading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+    const inAuthGroup = segments[0] === 'auth';
+    if (!user && !inAuthGroup) {
+      router.replace('/auth/welcome');
+    } else if (user && inAuthGroup) {
+      router.replace('/(tabs)');
+    }
+  }, [user, loading, segments]);
+}
+
+function RootStack() {
+  useProtectedRoute();
+  const { loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={theme.colors.brand} size="large" />
+      </View>
+    );
+  }
+
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FFFFFF' } }}>
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="auth" />
+      <Stack.Screen name="exam/[id]" options={{ presentation: 'card' }} />
+      <Stack.Screen name="course/[id]" options={{ presentation: 'card' }} />
+      <Stack.Screen name="ai-tutor" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="planner" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="quiz" options={{ presentation: 'card' }} />
+      <Stack.Screen name="live/[id]" options={{ presentation: 'card' }} />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
@@ -26,15 +69,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FFFFFF' } }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="exam/[id]" options={{ presentation: 'card' }} />
-          <Stack.Screen name="course/[id]" options={{ presentation: 'card' }} />
-          <Stack.Screen name="ai-tutor" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="planner" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="quiz" options={{ presentation: 'card' }} />
-          <Stack.Screen name="live/[id]" options={{ presentation: 'card' }} />
-        </Stack>
+        <AuthProvider>
+          <RootStack />
+        </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

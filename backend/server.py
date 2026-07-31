@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Depends
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -24,6 +24,7 @@ from seed_data import (
     PROFILE,
     MOCK_TESTS,
 )
+from auth import init_auth, make_router, ensure_indexes, get_optional_user, get_current_user
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -39,6 +40,22 @@ api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+# Wire auth
+init_auth(db)
+
+
+def _get_courses():
+    return COURSES
+
+
+auth_router = make_router(_get_courses)
+app.include_router(auth_router)
+
+
+@app.on_event("startup")
+async def _startup():
+    await ensure_indexes(db)
 
 
 # ---------------- Models ----------------
@@ -94,7 +111,7 @@ async def root():
 
 
 @api_router.get("/greeting")
-async def greeting():
+async def greeting(user: Optional[dict] = Depends(get_optional_user)):
     hour = datetime.now(timezone.utc).hour + 5  # rough IST
     hour = hour % 24
     if hour < 12:
@@ -103,6 +120,9 @@ async def greeting():
         g = "Good Afternoon"
     else:
         g = "Good Evening"
+    if user:
+        first = (user.get("name") or "Student").split(" ")[0]
+        return {"greeting": g, "name": first, "streak": user.get("streak", 0), "coins": user.get("coins", 0), "xp": user.get("xp", 0)}
     return {"greeting": g, "name": PROFILE["name"].split(" ")[0], "streak": PROFILE["streak"], "coins": PROFILE["coins"], "xp": PROFILE["xp"]}
 
 
@@ -128,8 +148,21 @@ async def exam_detail(exam_id: str):
 
 
 @api_router.get("/courses")
-async def courses():
-    return {"courses": [{k: v for k, v in c.items() if k != "chapters"} for c in COURSES]}
+async def courses(active_only: bool = False):
+    src = [c for c in COURSES if (c.get("active", True) or not active_only)]
+    return {"courses": [{k: v for k, v in c.items() if k != "chapters"} for c in src]}
+
+
+@api_router.get("/courses/active")
+async def active_courses():
+    """Only active courses – used for the Registration → Course Selection step."""
+    src = [c for c in COURSES if c.get("active", True)]
+    return {"courses": [
+        {"id": c["id"], "title": c["title"], "subject": c["subject"], "instructor": c["instructor"],
+         "duration_hours": c["duration_hours"], "rating": c["rating"], "students": c["students"],
+         "thumbnail": c["thumbnail"]}
+        for c in src
+    ]}
 
 
 @api_router.get("/courses/{course_id}")

@@ -6,17 +6,30 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { theme } from '@/src/theme';
 import { api } from '@/src/api';
+import { useAuth } from '@/src/AuthContext';
 
 const W = Dimensions.get('window').width;
 
 export default function Profile() {
   const router = useRouter();
+  const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [perf, setPerf] = useState<any>(null);
 
   useEffect(() => { (async () => { setProfile(await api.profile()); setPerf(await api.performance()); })(); }, []);
 
   if (!profile) return <View style={{ flex: 1, backgroundColor: '#FFF' }} />;
+
+  // Merge real user info from auth if available
+  const display = user ? {
+    ...profile,
+    name: user.name || profile.name,
+    email: user.email || profile.email,
+    coins: user.coins ?? profile.coins,
+    xp: user.xp ?? profile.xp,
+    streak: user.streak ?? profile.streak,
+    level: user.level ?? profile.level,
+  } : profile;
 
   const maxHours = Math.max(...(perf?.weekly_hours || [1]));
 
@@ -33,10 +46,10 @@ export default function Profile() {
               </Pressable>
             </View>
             <View style={s.avatarRow}>
-              <View style={s.avatar}><Text style={s.avatarText}>A</Text></View>
+              <View style={s.avatar}><Text style={s.avatarText}>{display.name?.[0]?.toUpperCase() || 'A'}</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={s.name}>{profile.name}</Text>
-                <Text style={s.email}>{profile.email}</Text>
+                <Text style={s.name}>{display.name}</Text>
+                <Text style={s.email}>{display.email}</Text>
                 <View style={s.subChip}>
                   <Ionicons name="star" size={11} color={theme.colors.gold} />
                   <Text style={s.subChipText}>{profile.subscription}</Text>
@@ -44,13 +57,13 @@ export default function Profile() {
               </View>
             </View>
             <View style={s.statsGrid}>
-              <View style={s.statCell}><Text style={s.statVal}>{profile.xp}</Text><Text style={s.statLbl}>XP</Text></View>
+              <View style={s.statCell}><Text style={s.statVal}>{display.xp}</Text><Text style={s.statLbl}>XP</Text></View>
               <View style={s.statDivider} />
-              <View style={s.statCell}><Text style={s.statVal}>{profile.coins}</Text><Text style={s.statLbl}>Coins</Text></View>
+              <View style={s.statCell}><Text style={s.statVal}>{display.coins}</Text><Text style={s.statLbl}>Coins</Text></View>
               <View style={s.statDivider} />
-              <View style={s.statCell}><Text style={s.statVal}>{profile.streak}</Text><Text style={s.statLbl}>Streak</Text></View>
+              <View style={s.statCell}><Text style={s.statVal}>{display.streak}</Text><Text style={s.statLbl}>Streak</Text></View>
               <View style={s.statDivider} />
-              <View style={s.statCell}><Text style={s.statVal}>Lv {profile.level}</Text><Text style={s.statLbl}>Level</Text></View>
+              <View style={s.statCell}><Text style={s.statVal}>Lv {display.level}</Text><Text style={s.statLbl}>Level</Text></View>
             </View>
           </View>
         </SafeAreaView>
@@ -122,6 +135,7 @@ export default function Profile() {
             { icon: 'chatbubbles-outline', label: 'AI Tutor', onPress: () => router.push('/ai-tutor') },
             { icon: 'card-outline', label: 'Subscription', onPress: () => {} },
             { icon: 'help-circle-outline', label: 'Help & Support', onPress: () => {} },
+            { icon: 'log-out-outline', label: 'Logout', onPress: async () => { await signOut(); router.replace('/auth/welcome'); } },
           ].map((m) => (
             <Pressable key={m.label} testID={`menu-${m.label}`} style={s.menuRow} onPress={m.onPress}>
               <View style={s.menuIcon}><Ionicons name={m.icon as any} size={20} color={theme.colors.brand} /></View>

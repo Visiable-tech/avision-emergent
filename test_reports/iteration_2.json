@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 2 – Auth flow (Course-select → Register → Auto-login → Home / Login / Forgot-Password / Logout) is fully working end-to-end. Backend: 33/33 pytest cases in /app/backend/tests/test_auth_flow.py passed (100%) against public URL – covering /api/courses/active (6 seeded), /api/auth/register success + invalid-course (400) + duplicate-email (409) + invalid-phone (422 for '12345', '5876543210', '98765432', 'abcdefghij'), /api/auth/login success + 401 wrong-password + 429 lockout after 5 failed attempts, /api/auth/me (Bearer) with no password_hash / no _id, /api/auth/logout token revocation (subsequent /me → 401), /api/auth/forgot-password (mock_reset_token surfaced) → /api/auth/reset-password → login with new password, invalid reset token → 400, non-existent email → 200 without token (no enumeration), /api/auth/update-course auth-required, and full regression on all pre-existing endpoints (/greeting, /exam-categories, /exams/{id}, /daily-quiz, /quiz/submit, /current-affairs, /leaderboard, /profile, /performance, /mock-tests, /courses, /live-classes). No `_id` leaked in any response text. Frontend (mobile viewport 390x844, Expo web preview): fresh app with no token routes to /auth/welcome; tap Create Account → /auth/course-select shows the 6 active course cards, Continue is disabled until a card is tapped, tapping a card highlights it and enables Continue; Continue navigates to /auth/register with the selected course carried in params; registration form validates invalid phone (shows inline error) and blocks submit; correcting phone and submitting registers user, auto-logs in and lands on tabs Home with greeting + 100 welcome coins visible in header; Login screen with wrong password shows inline 401 error, correct password logs in; Forgot-Password → email → 'Reset code sent' info box, token auto-filled in fp-token field (verified via input.value), new password + Reset navigates back to login and the account can be logged in with the NEW password; Profile → menu-Logout tears down the session and returns to /auth/welcome. Only one non-blocking console warning ('props.pointerEvents is deprecated' – pre-existing, from a library). No React Native red screens. No deprecated Expo packages (no expo-av / expo-barcode-scanner / expo-background-fetch).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/exams/{id}", "issue": "(Pre-existing from iter 1) Unknown exam ids still return 200 with default template instead of 404. Not blocking auth."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "auth/login.tsx", "issue": "The 'Login' Pressable renders with duplicate data-testid='login-submit' – two DOM elements share the same testID (Playwright hits strict-mode warning). Likely the outer Pressable AND an inner wrapper both carry the prop. Investigate and keep testID on the outer Pressable only.", "testID": "login-submit", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "react-native-web (transitive)", "issue": "Console warning 'props.pointerEvents is deprecated. Use style.pointerEvents' – carried over from iter 1, non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_auth_flow.py",
+    "/app/test_reports/pytest/pytest_auth_results.xml"
+  ],
+  "action_items": [
+    "(Low) In app/auth/login.tsx, ensure only one element carries data-testid=\"login-submit\" (Playwright strict-mode picks up two).",
+    "(Low, pre-existing) Add testID='msg-assistant-*'/'msg-user-*' to chat bubbles and testID='planner-result' to planner output for automation hooks.",
+    "(Optional) GET /api/exams/{id} should return 404 for unknown ids."
+  ],
+  "critical_code_review_comments": [
+    "auth.py: correct use of bcrypt (rounds from env, default 12), pyjwt with iss/aud/jti/nbf/exp, revocation via revoked_tokens+TTL index, SHA256-hashed reset tokens with 30-min TTL, non-enumerating forgot-password, lockout after 5 failed logins for 15 min – all matches expected auth playbook.",
+    "auth.py::_sanitize_user strips both password_hash and _id before returning – matches the 'no _id in response' rule.",
+    "auth.py::/logout is idempotent (returns 200 even without token) which is fine for client-side clearing.",
+    "server.py wires init_auth(db) and mounts auth_router at include_router BEFORE api_router – both are /api-prefixed so ingress rules are respected.",
+    "server.py /greeting accepts optional Bearer token via get_optional_user and returns the authenticated user's first name + coins/xp/streak – consumed correctly by the Home header.",
+    "Frontend AuthContext + tokenStore + api layer read EXPO_PUBLIC_BACKEND_URL – no hardcoded URLs.",
+    "Registration form pushes {course_id} via router params from course-select – course carried through as expected; POST /api/auth/register accepts and persists course_id.",
+    "The mock_reset_token is intentionally surfaced in dev via response – must NOT be enabled in production (currently unconditional – flag for future hardening but out of scope for this MVP)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_auth_flow.py"
+  ],
+  "success_rate": {"backend": "100% (33/33)", "frontend": "100% of auth flows (welcome, course-select 6 cards, register + validation + auto-login, login + wrong-password error, forgot-password → reset → new-password login, logout → welcome, tabs regression)"},
+  "seed_data_creation": "No manual seed. Each test creates its own qa+{uuid}@avision.in users (auto-cleaned via TTL for reset tokens; user docs remain but are harmless and use unique emails per run).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Auth tests: pytest /app/backend/tests/test_auth_flow.py -v (BASE URL is loaded from /app/frontend/.env → EXPO_PUBLIC_BACKEND_URL). Use dynamic emails to avoid dup-email 409. TestID inventory verified on Profile screen: settings-btn, menu-Certificates, menu-Bookmarks, menu-Downloads, menu-AI Study Planner, menu-AI Tutor, menu-Subscription, menu-Help & Support, menu-Logout, tab-home/courses/tests/affairs/profile. Auth testIDs: welcome-register, welcome-login, cs-back, cs-continue, course-card-{id}, reg-name/email/phone/password/confirm/submit, login-email/password/submit/forgot, fp-email/send/token/newpw/reset. NOTE: 'login-submit' currently resolves to 2 DOM nodes – deduplicate before running strict-mode assertions. The reset-token surfaced via response.mock_reset_token AND auto-filled in the fp-token input (read via input.value, not innerText).",
+  "rca_of_issue": "No bugs to RCA. Only one low-priority observation: two nested elements share data-testid='login-submit' on the login screen – both wrap the same button so behaviour is unchanged, but Playwright strict mode warns. Fix by keeping testID on the outermost Pressable only."
+}
