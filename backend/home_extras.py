@@ -255,8 +255,8 @@ async def daily_challenge_submit(body: DailyChallengeSubmit, user_id: Optional[s
         if ok:
             correct += 1
         detail.append({
-            "id": q["id"], "text": q["text"], "your_answer": ans,
-            "correct_answer": q["correct"], "is_correct": ok,
+            "id": q["id"], "text": q["text"], "options": q["options"],
+            "your_answer": ans, "correct_answer": q["correct"], "is_correct": ok,
             "explanation": q["explanation"],
         })
     accuracy = round((correct / total) * 100, 1) if total else 0.0

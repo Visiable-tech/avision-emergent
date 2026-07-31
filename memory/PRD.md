@@ -1,99 +1,57 @@
 # Avision Institute - PRD
 
 ## Overview
-Premium mobile learning app for Indian competitive exam preparation, driven by **Exam Categories** (Banking, SSC, Railway, Insurance, Defence, Police, Teaching, MBA, Law, UPSC, CUET, State Exams).
+Premium mobile learning app for Indian competitive exam preparation, Exam Category driven, with a fully reordered Home screen matching top edtech UX patterns (Testbook / Adda247 / Oliveboard).
 
-## Brand
-- Name: Avision Institute
-- Tagline: One Destination for Every Competitive Exam
-- Colors: Royal Blue (#0B4DB8), Copper Gold (#C68A2D), Clean White
-- Design: Apple-inspired, glassmorphism, 20-24px rounded corners
+## Home Screen Order (final)
+1. **Banner Slider** — auto-sliding carousel with category-filtered banners + CTAs
+2. **Quick Access** — 12-tile icon grid
+3. **Exam Category** — the ONE selected category card (icon + name + top-4 exams) with a `Change` button
+4. **Daily Current Affairs** — ONE latest article card (image + headline + summary + date + Read More) + `View All →`
+5. **Continue Learning** — Netflix-style hero (only if the top course has progress > 0)
+6. **Featured Courses** — horizontal course cards + `View All →`
+7. **Live Classes** — horizontal live class cards + `View All →`
+8. **Mock Tests** — top 3 tests + `View All →`
+9. **Daily Challenge** — 2×2 grid of 4 challenges (Current Affairs / English / Reasoning / Quantitative Aptitude) with difficulty chips and per-day attempt limit
+10. **Latest Job Alerts** — 2 cards (Org logo + Title + Org + Posts/Salary/Last Date + Apply Now) + `View All →`
 
-## Tech Stack
-- Frontend: React Native (Expo Router SDK 54), TypeScript
-- Backend: FastAPI + MongoDB (Motor async)
-- AI: Claude Sonnet 4.5 via emergentintegrations & EMERGENT_LLM_KEY
-- Auth: JWT (PyJWT HS256, 30-day), bcrypt(12), expo-secure-store / localStorage
+All 10 sections auto-filter by the selected exam category. Changing category via the header dropdown refreshes the whole home screen without logout.
 
-## Architecture — Exam Category driven
-- `exam_categories` collection: 12 seeded categories, each with slug/icon/color/banner/status/display_order.
-- `exams` collection: many-to-one to categories, each with slug/status/display_order.
-- `users` collection: `category_id`, `selected_exam_id` (optional), `language` (en/hi/bn), plus name/email/password/phone/coins/xp/streak/level/referral_code.
-- All content endpoints support `?category=<id>` filter. Content with `category_id: None` is treated as universal.
-- Admin CRUD endpoints for categories & exams — ready for a web/mobile admin UI.
+## New Backend (iteration 4)
+### Data
+- `daily_challenge_attempts` collection (unique index on user_id + subject_id + date)
+- Static seeds for banners, job alerts, and 4 daily-challenge subjects (10 questions each)
 
-## Registration Flow (rewritten)
-1. **Welcome** — brand hero + Create Account / I already have an account.
-2. **Category Select (`/auth/category-select`)** — beautiful grid of 12 category cards with icon + name + top-3-exams subtitle + live search box. Selected card gets blue background + checkmark badge. Continue button disabled until pick.
-3. **Register (`/auth/register`)** — chip showing selected category (with Change link) + Name, Email, Phone (+91 with 10-digit validation), Password, Confirm Password.
-4. On success → auto-login → home; `category_id`, `language`, and 100-coin welcome bonus saved on the user.
+### Endpoints
+- `GET  /api/banners[?category=]`
+- `GET  /api/current-affairs/latest[?category=]`
+- `GET  /api/job-alerts[?category=&limit=]`, `GET /api/job-alerts/{id}`
+- `GET  /api/daily-challenges[?category=&user_id=]` — includes `attempted` flag per subject when user_id passed
+- `GET  /api/daily-challenges/{subject_id}` — questions WITHOUT correct answers
+- `POST /api/daily-challenges/submit[?user_id=]` — returns per-Q review with options + correct answer + explanation, coins/xp earned, rank. Dedupes to one attempt/day/user; credits coins & xp to user account.
 
-## Header (Home)
-- Time-aware localized greeting + user first name
-- **Exam Category dropdown** chip → opens bottom-sheet with search + 12 categories, tap to switch
-- **Language dropdown** chip → English / हिन्दी / বাংলা with flags
-- Streak chip + Coins chip
-- Category & language change refresh Home content immediately and persist across reloads (localStorage + backend sync)
+## New Frontend (iteration 4)
+- `app/(tabs)/index.tsx` — completely rewritten Home in the new order
+- `app/job-alerts.tsx` — full job list with category filter, pull-to-refresh
+- `app/daily-challenge/[subject].tsx` — quiz + result screen with score/accuracy/time/rank + coins/xp earned
+- Reusable `SectionTitle` and `SectionRow` helpers within Home for consistent look
 
-## i18n
-- Provider: `/app/frontend/src/i18n.tsx`
-- ~90 key strings translated in English, Hindi, Bengali
-- Covers: navigation labels, greetings, welcome/register/login/forgot-password flows, home sections, profile menu, tests page, error messages
-- Selected language persisted locally and mirrored to `/api/auth/update-language` for logged-in users
+## Testing (all iterations cumulative)
+- Iteration 1 (MVP): 25/25 backend + all frontend ✅
+- Iteration 2 (Auth): 33/33 backend + all frontend ✅
+- Iteration 3 (Category arch + i18n): 87/87 backend + all frontend ✅
+- Iteration 4 (Home restructure): **103/103 backend PASS** (16 new tests) + all frontend flows PASS including auto-slide banners, daily-challenge quiz submit → review, job list, and the critical `options` field in submit-response (fixed after first test run).
 
-## Content Filtering
-Every listing endpoint accepts `?category=<slug>` — courses, live classes, mock tests, current affairs. Frontend `CategoryContext` centralizes selected category and threads it through all API calls. Content tagged with `category_id: None` (e.g. general daily current affairs) is visible in every category.
-
-## Backend Endpoints (added / updated)
-### Categories (new)
-- `GET  /api/exam-categories/active?search=` — active list with search + subtitles
-- `GET  /api/exam-categories/all` — all (including inactive) for admin
-- `GET  /api/exam-categories/{id}` — detail with exams
-- `GET  /api/exams-by-category/{cid}` — exams under a category
-
-### Admin (new, no auth-gate yet — see next steps)
-- `POST/PUT/DELETE /api/admin/categories[/id]`
-- `POST/PUT/DELETE /api/admin/exams[/id]` — validates parent category
-
-### Auth (updated)
-- `POST /api/auth/register` — now accepts `category_id` (new) OR `course_id` (legacy) + `language` field
-- `POST /api/auth/update-category` — Bearer required
-- `POST /api/auth/update-language` — Bearer required
-- Everything else unchanged and passing tests
-
-### Content (updated, backward compatible)
-- All content endpoints accept `?category=<slug>` filter
-- Old signatures still work (no filter → returns all)
-
-## Screens
-### Auth
-- Welcome, **Category Select** (new grid), Register, Login, Forgot Password (all localized)
-
-### Tabs
-- Home (header dropdowns, category-filtered content)
-- Courses (category filter)
-- Tests (category filter, daily challenge, leaderboard)
-- Current Affairs
-- Profile (logout, all menu labels localized)
-
-### Detail / modals
-- Exam Detail (11 tabs), Course Detail, AI Tutor (Claude Sonnet 4.5), AI Study Planner, Daily Quiz, Live Class player
-
-## Testing Summary
-- Iteration 1: 25/25 backend tests PASS + full frontend flows PASS
-- Iteration 2 (Auth): 33/33 backend tests PASS + full auth frontend PASS
-- Iteration 3 (Category arch): **87/87 backend tests PASS** (25 base + 33 auth + 29 categories) + full frontend PASS including:
-  - Category grid rendering + search filter
-  - Register with category_id auto-login
-  - Header language switch → UI re-renders in Hindi
-  - Header category switch → Home content refreshes
-  - Category + language persist across app reload
+## Tech Stack (unchanged)
+- Frontend: Expo Router SDK 54, TypeScript, expo-blur, expo-linear-gradient, expo-image, expo-secure-store
+- Backend: FastAPI + MongoDB (Motor async), PyJWT, bcrypt
+- AI: Claude Sonnet 4.5 via emergentintegrations
+- i18n: en / हिन्दी / বাংলা
 
 ## Not Built (still deferred)
-- **Admin UI** — CRUD endpoints exist and are unit-tested, but a full mobile admin panel isn't built. Recommended: build a lightweight web admin (React/Next) that hits the same `/api/admin/*` endpoints.
-- Admin auth-gating: the `/api/admin/*` endpoints are OPEN in this MVP. **Before production**, add a role check (add `role: "admin"` on user + `require_admin` dependency).
-- Emergent Google Sign-In (still email/password JWT only)
-- Razorpay subscription (awaiting user's test keys)
-- Persistent per-user quiz history / real leaderboard
-- Refer & Earn redemption UI
-- Push notifications, offline downloads, multi-language for AI chat replies
+- Web-based **Admin Panel** for CRUD on categories, exams, banners, job alerts, daily challenges (backend endpoints exist for categories/exams)
+- Admin auth-gating (`/api/admin/*` still open — add `role: admin` + require_admin dependency before production)
+- Razorpay subscription (awaiting test keys)
+- Refer & Earn redemption UI (referral_code field already present per user)
+- Push notifications, offline downloads
+- Google / Apple Sign-In

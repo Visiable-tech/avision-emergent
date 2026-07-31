@@ -18,7 +18,7 @@ export function HeaderDropdowns({ testIDPrefix = 'hd' }: { testIDPrefix?: string
 
   return (
     <View style={s.row}>
-      <Pressable testID={`${testIDPrefix}-category-btn`} style={s.chip} onPress={() => setShowCat(true)}>
+          <Pressable testID={`${testIDPrefix}-category-btn`} style={s.chip} onPress={() => setShowCat(true)}>
         <Ionicons name={(category?.icon as any) || 'apps-outline'} size={14} color={theme.colors.brand} />
         <Text style={s.chipTxt} numberOfLines={1}>{category?.name || t('selectCategory')}</Text>
         <Ionicons name="chevron-down" size={14} color={theme.colors.brand} />
