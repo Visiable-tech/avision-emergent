@@ -34,7 +34,24 @@ export const api = {
   courseDetail: (id: string) => req(`/courses/${id}`),
   liveClasses: (category?: string) => req(`/live-classes${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   currentAffairs: (category?: string) => req(`/current-affairs${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+  currentAffairsLatest: (category?: string) => req(`/current-affairs/latest${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   currentAffairsDetail: (id: string) => req(`/current-affairs/${id}`),
+  banners: (category?: string) => req(`/banners${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+  jobAlerts: (category?: string, limit = 20) => req(`/job-alerts?limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
+  jobDetail: (id: string) => req(`/job-alerts/${id}`),
+  dailyChallenges: (category?: string, userId?: string) => {
+    const p = new URLSearchParams();
+    if (category) p.set('category', category);
+    if (userId) p.set('user_id', userId);
+    const q = p.toString();
+    return req(`/daily-challenges${q ? `?${q}` : ''}`);
+  },
+  dailyChallengeDetail: (subjectId: string) => req(`/daily-challenges/${subjectId}`),
+  dailyChallengeSubmit: (subjectId: string, answers: number[], timeTakenSec: number, userId?: string) =>
+    req(`/daily-challenges/submit${userId ? `?user_id=${userId}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify({ subject_id: subjectId, answers, time_taken_sec: timeTakenSec }),
+    }),
   dailyQuiz: () => req('/daily-quiz'),
   submitQuiz: (quiz_id: string, answers: number[]) =>
     req('/quiz/submit', { method: 'POST', body: JSON.stringify({ quiz_id, answers }) }),

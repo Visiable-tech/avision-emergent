@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 3 (home restructure) – Backend: 103/103 pytest cases pass (16 NEW for banners/current-affairs-latest/job-alerts/daily-challenges + 87 regression from prior iterations). New file: /app/backend/tests/test_home_extras.py. All new endpoints behave correctly: /api/banners filters by category (banking returns b1,b2,b4 – i.e., SBI PO + 2 universals; excludes ssc-only b3 and upsc b5), /api/current-affairs/latest returns one article (universal CAs visible in all categories), /api/job-alerts?category=banking returns exactly j1 (IBPS PO) + j3 (SBI PO), ?limit works, /api/job-alerts/{id} returns detail (j1 has 4135 posts) and 404 for unknown, /api/daily-challenges returns the 4 expected subjects with metadata (questions_count, duration_min, difficulty, reward_coins/xp) and correctly marks attempted=false when no user_id and true after submission, /api/daily-challenges/{subject_id} strips correct+explanation, submit returns score/coins/xp/rank, submitting twice with same user_id/subject/date returns 409, coins & xp are credited to user (reflected in /api/auth/me). Frontend (390x844 Expo web): home renders in expected DOM order (banner-slider → cat-header-card → daily current affairs → continue learning → featured courses → live classes → mock tests → daily challenge (4 tiles: current-affairs, english, reasoning, quant) → job alerts (2 items for banking) → fab-ai-tutor). Registered fresh banking user; banking category card visible with Change button; job section on home shows exactly j1 & j3; daily challenge tile opens /daily-challenge/quant, quiz UI works (dc-opt-*, dc-next, dc-submit). After submission tile shows 'Attempted' with accuracy % and is disabled on subsequent tap (navigates back to home / no-op). All 5 view-all-* buttons are present (view-all-daily-current-affairs, view-all-featured-courses, view-all-live-classes, view-all-mock-tests, view-all-latest-job-alerts). CRITICAL bug: daily-challenge RESULT screen crashes with red-screen 'Cannot read properties of undefined (reading 2)' at app/daily-challenge/[subject].tsx:98 – code reads qq.options[qq.correct_answer] but the /api/daily-challenges/submit response detail objects do NOT include an 'options' field (home_extras.py::daily_challenge_submit only returns id/text/your_answer/correct_answer/is_correct/explanation). Deprecated packages: none detected (no expo-av / expo-barcode-scanner / expo-background-fetch). One pre-existing non-blocking warning 'props.pointerEvents is deprecated' from a library.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/daily-challenges/submit", "issue": "Response question objects do not include 'options'. The frontend result screen expects options[correct_answer] to render the correct choice text. Either add options to each detail entry OR frontend must lookup separately. This is the ROOT CAUSE of the red-screen crash on the DC result screen."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "app/daily-challenge/[subject].tsx", "issue": "RED-SCREEN CRASH after submitting a daily challenge – line 98 does `qq.options[qq.correct_answer]` but backend submit response has no `options` on questions. Fix by either (a) adding options to backend submit response detail OR (b) guarding with `qq.options?.[qq.correct_answer] ?? ''` in frontend. Reference: /app/frontend/app/daily-challenge/[subject].tsx:98", "testID": "dc-submit", "priority": "CRITICAL"},
+      {"component": "app/(tabs)/index.tsx", "issue": "'Continue Learning' card (testID='continue-learning-card') is rendered for a brand-new banking user with no course progress – spec says it should only appear when progress>0. Verify the guard condition (probably seed/default state issue).", "testID": "continue-learning-card", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Daily challenge → submit → result screen", "issue": "Post-submit review UI crashes with red screen because backend submit detail lacks options[]. Blocks the entire review-flow feature.", "affected_testIDs": ["dc-submit", "dc-finish"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "react-native-web (transitive)", "issue": "Console warning 'props.pointerEvents is deprecated. Use style.pointerEvents' – pre-existing, non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_home_extras.py",
+    "/app/test_reports/pytest/pytest_iter4_home_extras.xml",
+    "/app/test_reports/pytest/pytest_iter4_full.xml"
+  ],
+  "action_items": [
+    "(CRITICAL) Fix daily-challenge result red screen. Preferred fix: add `\"options\": q[\"options\"]` inside the detail append in home_extras.py::daily_challenge_submit so the frontend `qq.options[qq.correct_answer]` works. Alt fix: in app/daily-challenge/[subject].tsx line 98, guard with optional chaining.",
+    "(Medium) Verify 'Continue Learning' card visibility guard – should only appear if user has actual course progress. Currently visible for a fresh registered user.",
+    "(Low, pre-existing) Deduplicate testID='login-submit' on auth/login.tsx (two nodes carry the same testID).",
+    "(Nice-to-have) Add testID to the header category dropdown (e.g., 'header-category-dropdown') so category-change flow can be automated; currently no header-scoped testIDs were discovered other than header-streak / header-coins."
+  ],
+  "critical_code_review_comments": [
+    "home_extras.py routes are clean, all use HTTPException with proper codes (404/409). Unique index (user_id, subject_id, date) protects against double submit at DB level, complementing the app check.",
+    "home_extras.py::daily_challenge_submit response detail is missing 'options' – causing red screen on client. Rest of the payload (accuracy, coins_earned=correct*(reward//total), xp_earned, rank) is well-formed.",
+    "home_extras.py exposes correct/explanation ONLY in the submit-review payload, never in the detail GET – good separation.",
+    "seed_data BANNERS/JOB_ALERTS/DAILY_CHALLENGE_SUBJECTS use stable ids (b*, j*, subject slugs) and universal (category_id=None) items are correctly returned in all category filters via _filter_by_cat.",
+    "server.py wires init_home(db) and ensures indexes on startup – idempotent.",
+    "Frontend home (app/(tabs)/index.tsx) has 521 lines – close to the 700-line threshold; consider splitting Featured/Live/Mock/DC/Jobs sections into subcomponents for maintainability.",
+    "All interactive elements on home have testID (banner-slider, cat-header-card, ca-latest-card, continue-learning-card, dc-*, job-*, view-all-*, fab-ai-tutor)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_home_extras.py (new)"
+  ],
+  "success_rate": {"backend": "100% (103/103 – 16 new + 87 regression)", "frontend": "~85% (home order/sections/tiles/quiz flow/attempted-state work; RED SCREEN on DC result screen blocks review; category-change refresh not testable due to missing testID on header dropdown)"},
+  "seed_data_creation": "Fresh banking user TEST_dc_*@avision.in for backend tests; frontend registered t_iter4_*@avision.in with category=banking. All test users use unique emails; no cleanup needed.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run: pytest /app/backend/tests/ -v (all 103 must pass). The BLOCKING fix is in home_extras.py::daily_challenge_submit – add 'options': q['options'] to the detail dict, OR add optional chaining in daily-challenge/[subject].tsx:98. Verify test_home_extras.py::TestDailyChallengeSubmit still passes and re-test DC submit → result screen renders review cards with correct-answer text. Note: subject IDs are 'current-affairs', 'english', 'reasoning', 'quant'. Correct answers for quant used in test: [2,2,1,1,2,2,2,2,1,2]. Banking user gets banners {b1,b2,b4} and jobs {j1,j3}. Fresh test user email must be unique per run (uuid).",
+  "rca_of_issue": "Red-screen RCA: /api/daily-challenges/submit returns per-question review objects WITHOUT the 'options' array (see home_extras.py::daily_challenge_submit `detail.append({...})` around line 257 – only id/text/your_answer/correct_answer/is_correct/explanation). Frontend result screen at app/daily-challenge/[subject].tsx:98 does `qq.options[qq.correct_answer]` – reading '2' of undefined throws. Reproduction: Register a user with category_id=banking, tap dc-quant, answer all questions and tap dc-submit → red screen. Fix (backend, recommended, 1 line): add `\"options\": q[\"options\"],` to the detail dict inside the for-loop. Alt fix (frontend, 1 line): change line 98 to `<Text style={r.correct}>✓ {qq.options?.[qq.correct_answer] ?? String.fromCharCode(65 + qq.correct_answer)}</Text>`. After fix, submit twice-same-day still returns 409 (verified in test_submit_with_user_and_dedupe)."
+}

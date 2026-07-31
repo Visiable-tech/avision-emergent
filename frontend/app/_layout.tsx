@@ -66,6 +66,8 @@ function RootStack() {
       <Stack.Screen name="ai-tutor" options={{ presentation: 'modal' }} />
       <Stack.Screen name="planner" options={{ presentation: 'modal' }} />
       <Stack.Screen name="quiz" options={{ presentation: 'card' }} />
+      <Stack.Screen name="daily-challenge/[subject]" options={{ presentation: 'card' }} />
+      <Stack.Screen name="job-alerts" options={{ presentation: 'card' }} />
       <Stack.Screen name="live/[id]" options={{ presentation: 'card' }} />
     </Stack>
   );
