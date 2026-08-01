@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend-only verification of the Bottom Navigation (tab bar) safe-area fix. Logged in as test@avision.com and validated tab bar behaviour on 3 viewports (375x667, 390x667, 412x915). All 5 tabs (tab-home, tab-courses, tab-tests, tab-live-class, tab-profile) are rendered inside the viewport (bottom <= window.innerHeight) on every size. tab-current-affairs is correctly hidden. Tab bar is opaque white (rgb(255,255,255)) with position:absolute, borderTopLeftRadius/RightRadius = 20px. FAB (fab-ai-tutor) sits above tab bar (fab_bottom=579, tab_top=606 => no overlap). Tab-to-tab navigation works for all 5 tabs and tab bar stays visible. Bug fix VERIFIED.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "(tabs) tab bar",
+       "issues": [
+         "On RN Web, iOS shadow / Android elevation on tabBarStyle does not translate to CSS box-shadow (computedStyle.boxShadow = 'none'). Not user-visible on real devices but noted for parity in web preview."
+       ]}
+    ],
+    "react_native_issues": [
+      {"component": "pointerEvents prop", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Not from the tab-bar fix files, but appears from a dependency / older component in the tree. Reference: repo-wide."}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_5.json"],
+  "action_items": [
+    "(Optional) Migrate any lingering pointerEvents={...} usage to style.pointerEvents to silence the RN-Web deprecation warning.",
+    "(Optional) If a visible shadow above the tab bar is desired on web preview, add explicit borderTopColor + a tiny inset shadow via a wrapping View; native devices already show elevation correctly."
+  ],
+  "critical_code_review_comments": [
+    "_layout.tsx correctly uses useSafeAreaInsets() with an Android fallback of 8px and iOS fallback of 16px – good.",
+    "index.tsx mirrors the same TAB_BAR_HEIGHT formula (60 + max(insets.bottom, 8/16)) so ScrollView paddingBottom = TAB_BAR_HEIGHT + 40 keeps last card above the bar, and FAB is at TAB_BAR_HEIGHT + 12 so it sits above the bar – good.",
+    "Other tab screens (courses, tests, live-class, profile) should apply the same bottom padding pattern to guarantee their own content is not obscured. Only index.tsx was updated in this iteration – recommend a repo-wide check by main agent."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a", "frontend": "100%" },
+  "seed_data_creation": "None. Used existing test user test@avision.com / Test@123 from /app/memory/test_credentials.md.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login flow: on landing screen, tap text 'I already have an account' then use testIDs login-email / login-password / login-submit. After login, the tab bar exposes testIDs tab-home, tab-courses, tab-tests, tab-live-class, tab-profile (tab-current-affairs is hidden via href:null). Playwright bounding_box() returns positions relative to the top of the frame, and window.scrollTo does not scroll RN ScrollView (which uses its own overflow-scroll container). To scroll the home feed programmatically in browser, target the RN ScrollView DOM node (div[data-testid] hierarchy) and set scrollTop instead of using window.scrollTo.",
+  "rca_of_issue": "Original bug: on Android 3-button nav devices, tab bar was covered because the previous BlurView tab bar used a fixed height and no bottom safe-area inset. Fix: switched to opaque white container, computed BOTTOM_INSET = max(insets.bottom, Platform.OS==='android'?8:16), height = 60 + BOTTOM_INSET, paddingBottom = BOTTOM_INSET. Home screen (index.tsx) applies the same TAB_BAR_HEIGHT to ScrollView paddingBottom (+40) and FAB bottom (+12), preventing content clipping and FAB overlap. All acceptance checks pass in Expo web preview across 375/390/412-wide viewports."
+}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Platform, Dimensions, FlatList, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -35,6 +35,9 @@ export default function Home() {
   const { t } = useI18n();
   const { user } = useAuth();
   const { categoryId } = useCategory();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 16);
+  const TAB_BAR_HEIGHT = 60 + bottomInset;
   const [greeting, setGreeting] = useState<any>(null);
   const [banners, setBanners] = useState<any[]>([]);
   const [latestCA, setLatestCA] = useState<any>(null);
@@ -128,7 +131,7 @@ export default function Home() {
       </SafeAreaView>
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 140 }}
+        contentContainerStyle={{ paddingBottom: TAB_BAR_HEIGHT + 40 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.brand} />}
       >
@@ -371,7 +374,7 @@ export default function Home() {
       </ScrollView>
 
       {/* Floating AI Tutor */}
-      <Pressable testID="fab-ai-tutor" style={s.fabWrap} onPress={openAITutor}>
+      <Pressable testID="fab-ai-tutor" style={[s.fabWrap, { bottom: TAB_BAR_HEIGHT + 12 }]} onPress={openAITutor}>
         <LinearGradient colors={[theme.colors.brand, theme.colors.brandDark]} style={s.fabInner}>
           <Ionicons name="sparkles" size={22} color="#FFF" />
           <Text style={s.fabLabel}>{t('aiTutor')}</Text>
@@ -488,7 +491,7 @@ const s = StyleSheet.create({
   viewBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.colors.brand, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
   viewBtnTxt: { color: '#FFF', fontSize: 12, fontWeight: '800' },
   // FAB
-  fabWrap: { position: 'absolute', right: 16, bottom: 96, borderRadius: 999, overflow: 'hidden', ...(theme.shadow.strong as object) },
+  fabWrap: { position: 'absolute', right: 16, borderRadius: 999, overflow: 'hidden', ...(theme.shadow.strong as object) },
   fabInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12 },
   fabLabel: { color: '#FFF', fontWeight: '700', fontSize: 13 },
 });

@@ -1,37 +1,62 @@
 import { Tabs } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Platform, StyleSheet, View } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { Platform, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/src/theme';
 import { useI18n } from '@/src/i18n';
 
 export default function TabsLayout() {
   const { t } = useI18n();
+  const insets = useSafeAreaInsets();
+
+  // Minimum visible bottom padding so labels sit above system nav bar even on
+  // devices that report bottom inset = 0 (e.g. some emulators / older Android).
+  const BOTTOM_INSET = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 16);
+  const BAR_CORE_HEIGHT = 60; // icon + label
+  const BAR_HEIGHT = BAR_CORE_HEIGHT + BOTTOM_INSET;
+
   return (
     <Tabs
       screenOptions={({ route }) => ({
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: theme.colors.brand,
         tabBarInactiveTintColor: theme.colors.mutedLight,
         tabBarLabelStyle: {
           fontSize: 10.5,
           fontWeight: '700',
-          marginBottom: Platform.OS === 'ios' ? 0 : 4,
+          marginBottom: 0,
+        },
+        tabBarItemStyle: {
+          paddingTop: 6,
         },
         tabBarStyle: {
           position: 'absolute',
-          borderTopWidth: 0,
-          backgroundColor: 'transparent',
-          elevation: 0,
-          height: Platform.OS === 'ios' ? 84 : 68,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: BAR_HEIGHT,
           paddingTop: 8,
+          paddingBottom: BOTTOM_INSET,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: 'rgba(11,77,184,0.10)',
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          backgroundColor: '#FFFFFF',
+          // Material shadow
+          ...Platform.select({
+            ios: {
+              shadowColor: '#0B4DB8',
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.08,
+              shadowRadius: 12,
+            },
+            android: {
+              elevation: 12,
+            },
+            default: {},
+          }),
         },
-        tabBarBackground: () => (
-          <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill}>
-            <View style={styles.tabBg} />
-          </BlurView>
-        ),
         tabBarIcon: ({ color, focused }) => {
           if (route.name === 'index') {
             return <Ionicons name={focused ? 'home' : 'home-outline'} size={focused ? 26 : 24} color={color} />;
@@ -62,12 +87,3 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  tabBg: {
-    flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(11,77,184,0.12)',
-  },
-});
