@@ -192,6 +192,47 @@ export default function Home() {
           </View>
         )}
 
+        {/* 2a. Study Trio – Exam Info / Study / Practice */}
+        <View style={s.trioRow}>
+          <Pressable
+            testID="trio-exam-info"
+            style={[s.trioCard, { backgroundColor: '#DCFCE7' }]}
+            onPress={() => router.push('/(tabs)/profile')}
+          >
+            <View style={s.trioIconWrap}>
+              <MaterialCommunityIcons name="clipboard-list-outline" size={44} color="#0B4DB8" />
+              <View style={s.trioInfoDot}>
+                <Ionicons name="information" size={11} color="#FFF" />
+              </View>
+            </View>
+            <Text style={s.trioLabel}>Exam Info</Text>
+          </Pressable>
+
+          <Pressable
+            testID="trio-study"
+            style={[s.trioCard, { backgroundColor: '#E0E7FF' }]}
+            onPress={() => router.push('/(tabs)/courses')}
+          >
+            <View style={s.trioIconWrap}>
+              <MaterialCommunityIcons name="book-open-page-variant-outline" size={44} color="#4F46E5" />
+              <View style={[s.trioAccent, { backgroundColor: '#4F46E5' }]} />
+            </View>
+            <Text style={s.trioLabel}>Study</Text>
+          </Pressable>
+
+          <Pressable
+            testID="trio-practice"
+            style={[s.trioCard, { backgroundColor: '#FED7AA' }]}
+            onPress={() => router.push('/(tabs)/tests')}
+          >
+            <View style={s.trioIconWrap}>
+              <MaterialCommunityIcons name="notebook-edit-outline" size={44} color="#EA580C" />
+              <View style={[s.trioAccent, { backgroundColor: '#EA580C', right: 0, top: 4 }]} />
+            </View>
+            <Text style={s.trioLabel}>Practice</Text>
+          </Pressable>
+        </View>
+
         {/* 2. Quick Access grid – pastel tiles */}
         <SectionTitle title={t('quickAccess')} />
         <View style={s.quickGrid}>
@@ -681,6 +722,27 @@ const s = StyleSheet.create({
   hScroll: { paddingHorizontal: theme.spacing.lg, gap: 12 },
   // Quick access – pastel tiles
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: theme.spacing.md, rowGap: 4 },
+  // Study Trio (Exam Info / Study / Practice)
+  trioRow: { flexDirection: 'row', paddingHorizontal: theme.spacing.lg, marginTop: 22, gap: 10 },
+  trioCard: {
+    flex: 1, height: 120, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 8,
+    ...(Platform.OS === 'ios'
+      ? { shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.05, shadowRadius: 6 }
+      : { elevation: 1 }),
+  },
+  trioIconWrap: { alignItems: 'center', justifyContent: 'center', height: 52 },
+  trioInfoDot: {
+    position: 'absolute', right: -6, bottom: -2,
+    width: 20, height: 20, borderRadius: 10, backgroundColor: '#0B4DB8',
+    borderWidth: 2, borderColor: '#DCFCE7', alignItems: 'center', justifyContent: 'center',
+  },
+  trioAccent: {
+    position: 'absolute', top: -2, right: -6,
+    width: 14, height: 14, borderRadius: 4, transform: [{ rotate: '18deg' }],
+    opacity: 0.9,
+  },
+  trioLabel: { fontSize: 16, fontWeight: '900', color: theme.colors.onSurface, marginTop: 14, letterSpacing: -0.2 },
   quickTile: { width: '25%', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 6 },
   quickTileBox: {
     width: 68, height: 68, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
