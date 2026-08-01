@@ -37,6 +37,7 @@ from home_extras import (
 from feed import init_feed, ensure_feed_indexes, router as feed_router
 from reels import router as reels_router
 from live_batches import router as live_batches_router
+from exam_info import router as exam_info_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -72,6 +73,7 @@ app.include_router(home_extras_router)
 app.include_router(feed_router)
 app.include_router(reels_router)
 app.include_router(live_batches_router)
+app.include_router(exam_info_router)
 
 
 @app.on_event("startup")

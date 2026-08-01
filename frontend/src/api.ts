@@ -45,6 +45,9 @@ export const api = {
   liveBatches: (category?: string, limit = 10) =>
     req(`/live-batches?limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
   liveBatchDetail: (id: string) => req(`/live-batches/${id}`),
+  examInfo: (category?: string) =>
+    req(`/exam-info${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+  examInfoDetail: (id: string) => req(`/exam-info/${id}`),
   dailyChallenges: (category?: string, userId?: string) => {
     const p = new URLSearchParams();
     if (category) p.set('category', category);

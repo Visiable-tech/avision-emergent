@@ -197,7 +197,7 @@ export default function Home() {
           <Pressable
             testID="trio-exam-info"
             style={[s.trioCard, { backgroundColor: '#DCFCE7' }]}
-            onPress={() => router.push('/(tabs)/profile')}
+            onPress={() => router.push('/exam-info')}
           >
             <View style={s.trioIconWrap}>
               <MaterialCommunityIcons name="clipboard-list-outline" size={44} color="#0B4DB8" />
@@ -211,7 +211,7 @@ export default function Home() {
           <Pressable
             testID="trio-study"
             style={[s.trioCard, { backgroundColor: '#E0E7FF' }]}
-            onPress={() => router.push('/(tabs)/courses')}
+            onPress={() => router.push('/study')}
           >
             <View style={s.trioIconWrap}>
               <MaterialCommunityIcons name="book-open-page-variant-outline" size={44} color="#4F46E5" />
@@ -223,7 +223,7 @@ export default function Home() {
           <Pressable
             testID="trio-practice"
             style={[s.trioCard, { backgroundColor: '#FED7AA' }]}
-            onPress={() => router.push('/(tabs)/tests')}
+            onPress={() => router.push('/practice')}
           >
             <View style={s.trioIconWrap}>
               <MaterialCommunityIcons name="notebook-edit-outline" size={44} color="#EA580C" />
