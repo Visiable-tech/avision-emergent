@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Platform, Dimensions, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Platform, Dimensions, FlatList, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -16,16 +16,18 @@ import { HeaderDropdowns } from '@/src/components/HeaderDropdowns';
 const W = Dimensions.get('window').width;
 const BANNER_W = W - 32;
 
-// Quick access grid config (8 tiles, 4x2)
-const QUICK_ITEMS = [
-  { id: 'video-courses', icon: 'play-circle', label: 'Video Course', color: '#0B4DB8' },
-  { id: 'mock-tests', icon: 'document-text', label: 'Mock Test', color: '#C68A2D' },
-  { id: 'live-classes', icon: 'videocam', label: 'Live Class', color: '#EF4444' },
-  { id: 'current-affairs', icon: 'newspaper', label: 'Current Affairs', color: '#7C3AED' },
-  { id: 'daily-quiz', icon: 'flash', label: 'Daily Quiz', color: '#F59E0B' },
-  { id: 'feed', icon: 'sparkles', label: 'Feed', color: '#10B981' },
-  { id: 'planner', icon: 'calendar', label: 'AI Planner', color: '#3B82F6' },
-  { id: 'jobs', icon: 'briefcase', label: 'Job Alerts', color: '#0EA5E9' },
+// Quick access grid – pastel tiles, 4x2 (8 tiles)
+const QUICK_ITEMS: {
+  id: string; icon: any; iconSet?: 'ion' | 'mci'; label: string; tint: string; iconColor: string;
+}[] = [
+  { id: 'current-affairs', icon: 'newspaper',           iconSet: 'ion', label: 'Current Affairs', tint: '#DBEAFE', iconColor: '#2563EB' },
+  { id: 'daily-quiz',      icon: 'brain',               iconSet: 'mci', label: 'Daily Quiz',      tint: '#FCE7F3', iconColor: '#DB2777' },
+  { id: 'pyq',             icon: 'file-document-multiple', iconSet: 'mci', label: 'PYQ',           tint: '#CCFBF1', iconColor: '#0D9488' },
+  { id: 'feed',            icon: 'text-box-multiple',   iconSet: 'mci', label: 'Feed',            tint: '#FAE8FF', iconColor: '#A855F7' },
+  { id: 'magazine',        icon: 'book-open-page-variant', iconSet: 'mci', label: 'Magazine',     tint: '#FED7AA', iconColor: '#EA580C' },
+  { id: 'booster',         icon: 'rocket-launch',       iconSet: 'mci', label: 'Booster',         tint: '#DBEAFE', iconColor: '#2563EB' },
+  { id: 'ca-booklet',      icon: 'book-open-variant',   iconSet: 'mci', label: 'CA/GA Booklet',   tint: '#E0E7FF', iconColor: '#4F46E5' },
+  { id: 'planner',         icon: 'star-four-points',    iconSet: 'mci', label: 'AI Planner',      tint: '#DCFCE7', iconColor: '#16A34A' },
 ];
 
 export default function Home() {
@@ -87,14 +89,16 @@ export default function Home() {
   const handleQuickPress = (qid: string) => {
     if (Platform.OS !== 'web') Haptics.selectionAsync();
     switch (qid) {
-      case 'video-courses': router.push('/(tabs)/courses'); break;
-      case 'mock-tests': router.push('/(tabs)/tests'); break;
-      case 'live-classes': router.push('/(tabs)/live-class'); break;
       case 'current-affairs': router.push('/(tabs)/current-affairs'); break;
       case 'daily-quiz': router.push('/quiz'); break;
+      case 'pyq': router.push('/(tabs)/tests'); break;
       case 'feed': router.push('/feed'); break;
+      case 'ca-booklet': router.push('/(tabs)/current-affairs'); break;
       case 'planner': router.push('/planner'); break;
-      case 'jobs': router.push('/job-alerts'); break;
+      case 'magazine':
+      case 'booster':
+        Alert.alert('Coming Soon', 'This section is being crafted for you. Stay tuned!');
+        break;
       default: router.push('/(tabs)/profile');
     }
   };
@@ -164,7 +168,7 @@ export default function Home() {
           </View>
         )}
 
-        {/* 2. Quick Access grid (with Feed) */}
+        {/* 2. Quick Access grid – pastel tiles */}
         <SectionTitle title={t('quickAccess')} />
         <View style={s.quickGrid}>
           {QUICK_ITEMS.map((q) => (
@@ -174,8 +178,12 @@ export default function Home() {
               style={s.quickTile}
               onPress={() => handleQuickPress(q.id)}
             >
-              <View style={[s.quickIconWrap, { backgroundColor: `${q.color}15` }]}>
-                <Ionicons name={q.icon as any} size={22} color={q.color} />
+              <View style={[s.quickTileBox, { backgroundColor: q.tint }]}>
+                {q.iconSet === 'mci' ? (
+                  <MaterialCommunityIcons name={q.icon as any} size={36} color={q.iconColor} />
+                ) : (
+                  <Ionicons name={q.icon as any} size={34} color={q.iconColor} />
+                )}
               </View>
               <Text style={s.quickLabel} numberOfLines={1}>{q.label}</Text>
             </Pressable>
@@ -415,11 +423,16 @@ const s = StyleSheet.create({
   sectionRowWrap: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: theme.spacing.lg, marginTop: 22, marginBottom: 12 },
   viewAll: { fontSize: 13, color: theme.colors.brand, fontWeight: '700' },
   hScroll: { paddingHorizontal: theme.spacing.lg, gap: 12 },
-  // Quick access
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: theme.spacing.md },
+  // Quick access – pastel tiles
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: theme.spacing.md, rowGap: 4 },
   quickTile: { width: '25%', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 6 },
-  quickIconWrap: { width: 54, height: 54, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  quickLabel: { fontSize: 11, color: theme.colors.onSurfaceSecondary, fontWeight: '700', textAlign: 'center' },
+  quickTileBox: {
+    width: 68, height: 68, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+    ...(Platform.OS === 'ios'
+      ? { shadowColor: '#0B4DB8', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8 }
+      : { elevation: 2 }),
+  },
+  quickLabel: { fontSize: 11.5, color: theme.colors.onSurface, fontWeight: '700', textAlign: 'center', marginTop: 8 },
   // Trending tests
   trendCard: { width: 240, height: 190, borderRadius: 20, overflow: 'hidden', padding: 14, marginRight: 12, ...(theme.shadow.card as object) },
   trendTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
