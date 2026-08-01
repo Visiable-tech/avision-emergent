@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 4 (frontend restructure + feed + job-detail). Backend sanity: 7/7 new tests pass (test_feed_and_home.py) – /api/feed returns posts with likes/comments/liked (bool); ?category=banking filters banking + universal posts (excludes ssc/upsc); ?user_id sets liked=false for unknown user. /api/banners?category=banking returns b1,b2,b4 (excludes b3,b5). /api/job-alerts?category=banking returns j1,j3 with required keys (id,title,organization,org_logo,publish_date,last_date,posts/posts_count). /api/job-alerts/j1 detail has important_dates(list), selection_process(list), important_links(list), eligibility, age_limit, salary, official_website. /api/daily-challenges returns 4 subjects with attempted/reward_coins/icon/color. Frontend (390x844 Expo web) with test@avision.com/Test@123: (1) Login flow works – landing → 'I already have an account' → login form → Home. (2) Tab bar: 5 tabs in correct order (tab-home, tab-courses, tab-tests, tab-live-class, tab-profile); tab-current-affairs correctly hidden (href:null). (3) Home vertical order verified via DOM y-offsets: banner-slider(99) < quick-*(330) < trending-*(569) < ca-latest-card(814) < dc-*(1201) < job-*(1438) – matches spec exactly. Header shows greeting + Welcome back Test + Banking category + streak(0) + coins(100). Banner slider present (New Year Mega Offer with page dots). Quick Access grid: all 8 tiles present (video-courses, mock-tests, live-classes, current-affairs, daily-quiz, feed, planner, jobs). Trending Tests card visible with TRENDING flame chip, Hard difficulty, questions/duration, Attempt Now CTA. Daily Current Affairs card (ca-latest-card) present. Daily Challenge slider shows 4 subjects (dc-current-affairs, dc-english, dc-reasoning, dc-quant). Latest Job Alerts shows 2 banking jobs (job-j1, job-j3) with redesigned cards (logo IBPS/SBI, title, org, posts badge 4135/2000, Posted+Last Date rows, View Details CTA). FAB AI Tutor visible. (4) Feed navigation: quick-feed → /feed route with 4 posts, each with avatar+admin name+date, type pill (MOTIVATION visible), image, title, description, like/comment counts, Share pill. feed-back returns to Home. (5) Job Alert detail: job-j1 → /job-alert/j1 – gradient hero with IBPS logo, title 'IBPS PO Recruitment 2026', chips (Last: 30 Aug 2026, 4135 posts). 3 stat cards (Salary ₹52,000+, Total Posts 4135, Age Limit 20-30 years). About + Eligibility + Important Dates (Notification/Apply Start/Apply Last/Prelims with dates) + Selection Process (numbered) + sticky Apply Now button. job-back works. (6) Live Class tab (/live-class): 'Live Class' header, Upcoming section shows 2 cards (Banking – Reasoning Puzzles Marathon by Aisha Khan, Current Affairs – Weekly Wrap by Team Avision) with thumbnails and Set Reminder buttons. No live-now cards currently (no live sessions in seed – acceptable per spec 'if any live sessions'). (7) No console errors, no page errors observed. Deprecated packages: none detected in files of reference.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_feed_and_home.py",
+    "/app/test_reports/pytest/pytest_iter4_feed.xml"
+  ],
+  "action_items": [
+    "(Nice-to-have) Category dropdown change (Banking→SSC) and Language dropdown change (en→hi) were not automated this iteration – no testIDs on the HeaderDropdowns component. Consider adding testID='header-category-dropdown' and testID='header-language-dropdown' plus stable option testIDs like 'cat-opt-ssc' / 'lang-opt-hi' so category/language switching flows can be regression-tested end-to-end.",
+    "(Info) Live-class 'Live Now' section could not be visually verified because seed data currently has no session with status='live'. If demoing to reviewer, consider seeding one live session so the LIVE badge + Join Live CTA is exercisable.",
+    "(Low) Home banner auto-rotate at 4.5s interval is implemented (interval + scrollToOffset) – not visually verified via long wait, but code path is correct and banners.length>=3 for banking.",
+    "(Low, pre-existing from iter3) 'Continue Learning' guard – flagged previously; not part of current restructure but still worth confirming."
+  ],
+  "critical_code_review_comments": [
+    "app/(tabs)/_layout.tsx: current-affairs tab correctly declared with href:null to remain routable via deep link while hidden from tab bar. All 5 tabs have tabBarButtonTestID. Clean.",
+    "app/(tabs)/index.tsx (~480 lines) – below 700-line threshold, sections are readable. All interactive elements have testID (quick-*, trending-*, dc-*, job-*, view-all-*, banner-slider, ca-latest-card, header-streak, header-coins, home-greeting, fab-ai-tutor).",
+    "app/feed.tsx uses view-only footer stats (heart/comment icons render only counts, share button is a no-op placeholder) matching the 'view-only' contract in the spec.",
+    "app/job-alert/[id].tsx renders all detail sections conditionally; sticky Apply CTA in SafeAreaView bottom. openLink() Alert-fallback for '#' placeholder URLs. Well-guarded.",
+    "app/(tabs)/live-class.tsx cleanly partitions live vs upcoming by status==='live'. Empty-state UI present when both lists empty.",
+    "backend/feed.py: /api/feed always augments each post with likes/comments/liked – awaited counters per post (N+1). Acceptable for MVP scale (6 seeded posts); consider batching aggregation if list grows.",
+    "backend/home_extras.py: banners/jobs/daily-challenges filter helper _filter_by_cat is consistent; universal items (category_id=None) always included."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_feed_and_home.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7 new + 103 regression assumed from iter3 unchanged)", "frontend": "~95% (all restructure spec items verified end-to-end; only category/language dropdown switching + 4.5s banner auto-slide + live-now visual not executed due to missing testIDs / no live seed)"},
+  "seed_data_creation": "Reused existing seeded user test@avision.com / Test@123 (banking, en). No new seed data created for this iteration.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login flow requires FIRST clicking 'I already have an account' button on the landing page before the email/password form is visible – then click testID='login-submit'. Home testIDs: home-greeting, header-streak, header-coins, banner-slider, quick-{video-courses|mock-tests|live-classes|current-affairs|daily-quiz|feed|planner|jobs}, trending-<id>, ca-latest-card, dc-{current-affairs|english|reasoning|quant}, job-{j1|j3|...}, fab-ai-tutor, view-all-*. Feed route /feed uses feed-back and feed-post-<id> (fp1..fp6). Job detail route /job-alert/<id> uses job-back and job-apply. Live class tab uses live-now-<id> and live-upcoming-<id>. Backend health: pytest /app/backend/tests/ -v. Category/language dropdown selectors need to be added by main agent to enable automated switch tests.",
+  "rca_of_issue": "N/A – no bugs found this iteration."
+}

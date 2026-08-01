@@ -16,17 +16,26 @@ import { HeaderDropdowns } from '@/src/components/HeaderDropdowns';
 const W = Dimensions.get('window').width;
 const BANNER_W = W - 32;
 
+// Quick access grid config (8 tiles, 4x2)
+const QUICK_ITEMS = [
+  { id: 'video-courses', icon: 'play-circle', label: 'Video Course', color: '#0B4DB8' },
+  { id: 'mock-tests', icon: 'document-text', label: 'Mock Test', color: '#C68A2D' },
+  { id: 'live-classes', icon: 'videocam', label: 'Live Class', color: '#EF4444' },
+  { id: 'current-affairs', icon: 'newspaper', label: 'Current Affairs', color: '#7C3AED' },
+  { id: 'daily-quiz', icon: 'flash', label: 'Daily Quiz', color: '#F59E0B' },
+  { id: 'feed', icon: 'sparkles', label: 'Feed', color: '#10B981' },
+  { id: 'planner', icon: 'calendar', label: 'AI Planner', color: '#3B82F6' },
+  { id: 'jobs', icon: 'briefcase', label: 'Job Alerts', color: '#0EA5E9' },
+];
+
 export default function Home() {
   const router = useRouter();
   const { t } = useI18n();
   const { user } = useAuth();
-  const { categoryId, category } = useCategory();
+  const { categoryId } = useCategory();
   const [greeting, setGreeting] = useState<any>(null);
-  const [quick, setQuick] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
   const [latestCA, setLatestCA] = useState<any>(null);
-  const [courses, setCourses] = useState<any[]>([]);
-  const [live, setLive] = useState<any[]>([]);
   const [mocks, setMocks] = useState<any[]>([]);
   const [challenges, setChallenges] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
@@ -36,20 +45,20 @@ export default function Home() {
 
   const load = useCallback(async () => {
     try {
-      const [g, q, b, la, co, lv, mt, dc, jb] = await Promise.all([
+      const [g, b, la, mt, dc, jb] = await Promise.all([
         api.greeting(),
-        api.quickAccess(),
         api.banners(categoryId || undefined),
         api.currentAffairsLatest(categoryId || undefined).catch(() => null),
-        api.courses(categoryId || undefined),
-        api.liveClasses(categoryId || undefined),
         api.mockTests(categoryId || undefined),
         api.dailyChallenges(categoryId || undefined, user?.user_id),
-        api.jobAlerts(categoryId || undefined, 5),
+        api.jobAlerts(categoryId || undefined, 10),
       ]);
-      setGreeting(g); setQuick(q.items); setBanners(b.banners); setLatestCA(la);
-      setCourses(co.courses); setLive(lv.classes); setMocks(mt.tests);
-      setChallenges(dc.challenges); setJobs(jb.jobs);
+      setGreeting(g);
+      setBanners(b.banners || []);
+      setLatestCA(la);
+      setMocks(mt.tests || []);
+      setChallenges(dc.challenges || []);
+      setJobs(jb.jobs || []);
     } catch (e) { console.warn('home load', e); }
   }, [categoryId, user?.user_id]);
 
@@ -75,11 +84,24 @@ export default function Home() {
     router.push('/ai-tutor');
   };
 
+  const handleQuickPress = (qid: string) => {
+    if (Platform.OS !== 'web') Haptics.selectionAsync();
+    switch (qid) {
+      case 'video-courses': router.push('/(tabs)/courses'); break;
+      case 'mock-tests': router.push('/(tabs)/tests'); break;
+      case 'live-classes': router.push('/(tabs)/live-class'); break;
+      case 'current-affairs': router.push('/(tabs)/current-affairs'); break;
+      case 'daily-quiz': router.push('/quiz'); break;
+      case 'feed': router.push('/feed'); break;
+      case 'planner': router.push('/planner'); break;
+      case 'jobs': router.push('/job-alerts'); break;
+      default: router.push('/(tabs)/profile');
+    }
+  };
+
   const greetingLabel = greeting?.greeting_key === 'morning' ? t('goodMorning')
     : greeting?.greeting_key === 'afternoon' ? t('goodAfternoon')
     : greeting?.greeting_key === 'evening' ? t('goodEvening') : t('goodMorning');
-
-  const continueCourse = courses[0];
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.surface }}>
@@ -122,7 +144,7 @@ export default function Home() {
               renderItem={({ item }) => (
                 <Pressable testID={`banner-${item.id}`} style={[s.banner, { width: BANNER_W }]} onPress={() => item.route && router.push(item.route)}>
                   <Image source={{ uri: item.image }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
-                  <LinearGradient colors={['rgba(11,77,184,0.4)', 'rgba(11,77,184,0.85)']} style={StyleSheet.absoluteFillObject} />
+                  <LinearGradient colors={['rgba(11,77,184,0.35)', 'rgba(11,77,184,0.9)']} style={StyleSheet.absoluteFillObject} />
                   <View style={s.bannerContent}>
                     <Text style={s.bannerTitle}>{item.title}</Text>
                     <Text style={s.bannerSubtitle}>{item.subtitle}</Text>
@@ -142,52 +164,73 @@ export default function Home() {
           </View>
         )}
 
-        {/* 2. Quick Access */}
+        {/* 2. Quick Access grid (with Feed) */}
         <SectionTitle title={t('quickAccess')} />
         <View style={s.quickGrid}>
-          {quick.map((q: any) => (
+          {QUICK_ITEMS.map((q) => (
             <Pressable
               key={q.id}
               testID={`quick-${q.id}`}
               style={s.quickTile}
-              onPress={() => {
-                if (q.id === 'daily-quiz') router.push('/quiz');
-                else if (q.id === 'planner') router.push('/planner');
-                else if (q.id === 'video-courses') router.push('/(tabs)/courses');
-                else if (q.id === 'mock-tests') router.push('/(tabs)/tests');
-                else if (q.id === 'current-affairs') router.push('/(tabs)/current-affairs');
-                else if (q.id === 'live-classes') router.push('/(tabs)/courses');
-                else if (q.id === 'performance') router.push('/(tabs)/profile');
-                else router.push('/(tabs)/profile');
-              }}
+              onPress={() => handleQuickPress(q.id)}
             >
-              <View style={s.quickIconWrap}>
-                <Ionicons name={q.icon as any} size={22} color={theme.colors.brand} />
+              <View style={[s.quickIconWrap, { backgroundColor: `${q.color}15` }]}>
+                <Ionicons name={q.icon as any} size={22} color={q.color} />
               </View>
               <Text style={s.quickLabel} numberOfLines={1}>{q.label}</Text>
             </Pressable>
           ))}
         </View>
 
-        {/* 3. Exam Category (selected only) */}
-        {category && (
+        {/* 3. Trending Tests (horizontal slider) */}
+        {mocks.length > 0 && (
           <>
-            <SectionTitle title={t('yourCategory')} />
-            <Pressable testID="cat-header-card" style={s.catCard} onPress={() => router.push('/(tabs)/profile')}>
-              <View style={s.catIconWrap}>
-                <Ionicons name={(category.icon as any) || 'apps-outline'} size={26} color="#FFF" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.catName}>{category.name}</Text>
-                <Text style={s.catExams} numberOfLines={2}>
-                  {(category.exams || []).slice(0, 4).map((e: any) => e.name).join(' • ')}
-                </Text>
-              </View>
-              <View style={s.catChangeBtn}>
-                <Text style={s.catChangeTxt}>{t('change')}</Text>
-                <Ionicons name="chevron-forward" size={14} color={theme.colors.brand} />
-              </View>
-            </Pressable>
+            <SectionRow title={t('trendingTests')} onViewAll={() => router.push('/(tabs)/tests')} />
+            <FlatList
+              data={mocks.slice(0, 8)}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(i: any) => i.id}
+              contentContainerStyle={s.hScroll}
+              renderItem={({ item, index }: any) => (
+                <Pressable
+                  key={item.id}
+                  testID={`trending-${item.id}`}
+                  style={s.trendCard}
+                  onPress={() => router.push('/(tabs)/tests')}
+                >
+                  <LinearGradient
+                    colors={index % 2 === 0 ? ['#0B4DB8', '#083A8E'] : ['#C68A2D', '#9C6D22']}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                  <View style={s.trendTopRow}>
+                    <View style={s.trendTag}>
+                      <Ionicons name="flame" size={11} color="#FFF" />
+                      <Text style={s.trendTagTxt}>TRENDING</Text>
+                    </View>
+                    <View style={s.trendDiff}>
+                      <Text style={s.trendDiffTxt}>{item.difficulty}</Text>
+                    </View>
+                  </View>
+                  <Text style={s.trendTitle} numberOfLines={2}>{item.title}</Text>
+                  <View style={s.trendMetaRow}>
+                    <View style={s.trendMetaChip}>
+                      <Ionicons name="help-circle-outline" size={12} color="#FFF" />
+                      <Text style={s.trendMetaTxt}>{item.questions} Qs</Text>
+                    </View>
+                    <View style={s.trendMetaChip}>
+                      <Ionicons name="time-outline" size={12} color="#FFF" />
+                      <Text style={s.trendMetaTxt}>{item.duration}m</Text>
+                    </View>
+                  </View>
+                  <View style={s.trendCta}>
+                    <Text style={s.trendCtaTxt}>Attempt Now</Text>
+                    <Ionicons name="arrow-forward" size={14} color={theme.colors.brand} />
+                  </View>
+                </Pressable>
+              )}
+            />
           </>
         )}
 
@@ -216,103 +259,17 @@ export default function Home() {
           </>
         )}
 
-        {/* 5. Continue Learning */}
-        {continueCourse && continueCourse.progress > 0 && (
-          <Pressable
-            testID="continue-learning-card"
-            style={[s.heroCard, { marginTop: 20 }]}
-            onPress={() => router.push(`/course/${continueCourse.id}`)}
-          >
-            <Image source={{ uri: continueCourse.thumbnail }} style={s.heroImage} contentFit="cover" />
-            <LinearGradient colors={['rgba(0,0,0,0.1)', 'rgba(11,77,184,0.85)']} style={s.heroScrim} />
-            <View style={s.heroContent}>
-              <View style={s.heroBadge}><Text style={s.heroBadgeText}>{t('continueLearning')}</Text></View>
-              <Text style={s.heroTitle} numberOfLines={2}>{continueCourse.title}</Text>
-              <Text style={s.heroInstructor}>{continueCourse.instructor} • {continueCourse.duration_hours}h</Text>
-              <View style={s.progressBar}>
-                <View style={[s.progressFill, { width: `${Math.round(continueCourse.progress * 100)}%` }]} />
-              </View>
-              <View style={s.heroBottomRow}>
-                <Text style={s.progressText}>{Math.round(continueCourse.progress * 100)}% {t('complete')}</Text>
-                <View style={s.playBtn}>
-                  <Ionicons name="play" size={16} color={theme.colors.brand} />
-                  <Text style={s.playText}>{t('resume')}</Text>
-                </View>
-              </View>
-            </View>
-          </Pressable>
-        )}
-
-        {/* 6. Featured Courses */}
-        {courses.length > 0 && (
-          <>
-            <SectionRow title={t('featuredCourses')} onViewAll={() => router.push('/(tabs)/courses')} />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hScroll}>
-              {courses.slice(0, 6).map((c: any) => (
-                <Pressable key={c.id} testID={`course-${c.id}`} style={s.courseCard} onPress={() => router.push(`/course/${c.id}`)}>
-                  <Image source={{ uri: c.thumbnail }} style={s.courseThumb} contentFit="cover" />
-                  <View style={{ padding: 10 }}>
-                    <Text style={s.courseTitle} numberOfLines={2}>{c.title}</Text>
-                    <View style={s.rowMini}>
-                      <Ionicons name="star" size={12} color={theme.colors.gold} />
-                      <Text style={s.miniTxt}>{c.rating}</Text>
-                      <Text style={s.dotSep}>•</Text>
-                      <Text style={s.miniTxt}>{c.duration_hours}h</Text>
-                    </View>
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </>
-        )}
-
-        {/* 7. Live Classes */}
-        {live.length > 0 && (
-          <>
-            <SectionRow title={t('liveClasses')} onViewAll={() => router.push('/(tabs)/courses')} />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hScroll}>
-              {live.map((l: any) => (
-                <Pressable key={l.id} testID={`live-${l.id}`} style={s.liveCard} onPress={() => router.push(`/live/${l.id}`)}>
-                  <Image source={{ uri: l.thumbnail }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-                  <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)']} style={StyleSheet.absoluteFillObject} />
-                  {l.status === 'live' && (
-                    <View style={s.liveBadge}><View style={s.liveDot} /><Text style={s.liveBadgeText}>LIVE</Text></View>
-                  )}
-                  <View style={{ position: 'absolute', bottom: 10, left: 12, right: 12 }}>
-                    <Text style={s.liveTitle} numberOfLines={2}>{l.title}</Text>
-                    <Text style={s.liveMeta}>{l.instructor} • {l.time}</Text>
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </>
-        )}
-
-        {/* 8. Mock Tests */}
-        {mocks.length > 0 && (
-          <>
-            <SectionRow title={t('mockTests')} onViewAll={() => router.push('/(tabs)/tests')} />
-            <View style={{ paddingHorizontal: 16, gap: 10 }}>
-              {mocks.slice(0, 3).map((m: any) => (
-                <Pressable key={m.id} testID={`mock-${m.id}`} style={s.mockCard} onPress={() => router.push('/(tabs)/tests')}>
-                  <View style={s.mockIcon}><Ionicons name="document-text" size={22} color={theme.colors.brand} /></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.mockTitle} numberOfLines={2}>{m.title}</Text>
-                    <Text style={s.mockMeta}>{m.questions} Qs • {m.duration} min • {m.difficulty}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={theme.colors.mutedLight} />
-                </Pressable>
-              ))}
-            </View>
-          </>
-        )}
-
-        {/* 9. Daily Challenge */}
+        {/* 5. Daily Challenge horizontal slider */}
         {challenges.length > 0 && (
           <>
-            <SectionTitle title={t('dailyChallenge')} />
-            <View style={s.dcGrid}>
-              {challenges.map((c: any) => (
+            <SectionRow title={t('dailyChallenge')} onViewAll={() => router.push('/(tabs)/tests')} />
+            <FlatList
+              data={challenges}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(c: any) => c.id}
+              contentContainerStyle={s.hScroll}
+              renderItem={({ item: c }: any) => (
                 <Pressable
                   key={c.id}
                   testID={`dc-${c.id}`}
@@ -322,23 +279,26 @@ export default function Home() {
                     router.push({ pathname: '/daily-challenge/[subject]', params: { subject: c.id } });
                   }}
                 >
-                  <View style={[s.dcIconWrap, { backgroundColor: c.attempted ? theme.colors.success : theme.colors.brandTertiary }]}>
-                    <Ionicons name={c.icon as any} size={22} color={c.attempted ? '#FFF' : theme.colors.brand} />
+                  <View style={[s.dcIconWrap, { backgroundColor: c.attempted ? theme.colors.success : `${c.color || theme.colors.brand}15` }]}>
+                    <Ionicons name={c.icon as any} size={24} color={c.attempted ? '#FFF' : (c.color || theme.colors.brand)} />
                   </View>
                   <Text style={s.dcName} numberOfLines={1}>{c.name}</Text>
                   <View style={s.dcMetaRow}>
                     <Text style={s.dcMeta}>{c.questions_count} Q</Text>
-                    <Text style={s.dot}>•</Text>
+                    <Text style={s.dotSep}>•</Text>
                     <Text style={s.dcMeta}>{c.duration_min}m</Text>
+                    <Text style={s.dotSep}>•</Text>
+                    <Text style={s.dcMeta}>{c.difficulty}</Text>
                   </View>
-                  <View style={[s.dcDiff, { backgroundColor: c.difficulty === 'Hard' ? '#FEE2E2' : c.difficulty === 'Medium' ? '#FEF3C7' : '#DCFCE7' }]}>
-                    <Text style={[s.dcDiffTxt, { color: c.difficulty === 'Hard' ? theme.colors.error : c.difficulty === 'Medium' ? theme.colors.warning : theme.colors.success }]}>{c.difficulty}</Text>
+                  <View style={s.dcRewardRow}>
+                    <Ionicons name="ellipse" size={11} color={theme.colors.gold} />
+                    <Text style={s.dcReward}>+{c.reward_coins} coins</Text>
                   </View>
                   <View style={[s.dcCta, c.attempted && { backgroundColor: theme.colors.success }]}>
                     {c.attempted ? (
                       <>
-                        <Ionicons name="checkmark-circle" size={14} color="#FFF" />
-                        <Text style={s.dcCtaTxt}>{c.attempt?.accuracy?.toFixed(0)}% • {t('attempted')}</Text>
+                        <Ionicons name="checkmark-circle" size={13} color="#FFF" />
+                        <Text style={s.dcCtaTxt}>{c.attempt?.accuracy?.toFixed(0)}% • Done</Text>
                       </>
                     ) : (
                       <>
@@ -348,31 +308,52 @@ export default function Home() {
                     )}
                   </View>
                 </Pressable>
-              ))}
-            </View>
+              )}
+            />
           </>
         )}
 
-        {/* 10. Latest Job Alerts */}
+        {/* 6. Latest Job Alerts – redesigned */}
         {jobs.length > 0 && (
           <>
             <SectionRow title={t('latestJobs')} onViewAll={() => router.push('/job-alerts')} />
             <View style={{ paddingHorizontal: 16, gap: 12 }}>
-              {jobs.slice(0, 2).map((j: any) => (
-                <Pressable key={j.id} testID={`job-${j.id}`} style={s.jobCard}>
-                  <View style={s.jobLogo}>
-                    <Text style={s.jobLogoTxt}>{j.org_logo}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.jobTitle} numberOfLines={2}>{j.title}</Text>
-                    <Text style={s.jobOrg}>{j.organization}</Text>
-                    <View style={s.jobMetaRow}>
-                      <Ionicons name="time-outline" size={12} color={theme.colors.muted} />
-                      <Text style={s.jobMeta}>{t('lastDate')}: <Text style={{ fontWeight: '700', color: theme.colors.onSurface }}>{j.last_date}</Text></Text>
+              {jobs.slice(0, 4).map((j: any) => (
+                <Pressable
+                  key={j.id}
+                  testID={`job-${j.id}`}
+                  style={s.jobCard}
+                  onPress={() => router.push(`/job-alert/${j.id}`)}
+                >
+                  <View style={s.jobHeaderRow}>
+                    <View style={s.jobLogo}>
+                      <Text style={s.jobLogoTxt}>{j.org_logo}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.jobTitle} numberOfLines={2}>{j.title}</Text>
+                      <Text style={s.jobOrg}>{j.organization}</Text>
+                    </View>
+                    <View style={s.postsBadge}>
+                      <Text style={s.postsBadgeTxt}>{j.posts_count || j.posts || 0}</Text>
+                      <Text style={s.postsBadgeSub}>posts</Text>
                     </View>
                   </View>
-                  <View style={s.applyBtn}>
-                    <Text style={s.applyTxt}>{t('applyNow')}</Text>
+                  <View style={s.jobDivider} />
+                  <View style={s.jobBottom}>
+                    <View style={s.jobMetaCol}>
+                      <View style={s.jobMetaRow}>
+                        <Ionicons name="calendar-outline" size={12} color={theme.colors.muted} />
+                        <Text style={s.jobMeta}>{t('posted')}: <Text style={s.jobMetaStrong}>{j.publish_date}</Text></Text>
+                      </View>
+                      <View style={[s.jobMetaRow, { marginTop: 4 }]}>
+                        <Ionicons name="alarm-outline" size={12} color={theme.colors.error} />
+                        <Text style={s.jobMeta}>{t('lastDate')}: <Text style={[s.jobMetaStrong, { color: theme.colors.error }]}>{j.last_date}</Text></Text>
+                      </View>
+                    </View>
+                    <View style={s.viewBtn}>
+                      <Text style={s.viewBtnTxt}>{t('viewDetails')}</Text>
+                      <Ionicons name="arrow-forward" size={13} color="#FFF" />
+                    </View>
                   </View>
                 </Pressable>
               ))}
@@ -418,15 +399,16 @@ const s = StyleSheet.create({
   coinsChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.colors.goldTint, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
   streakText: { fontSize: 12, fontWeight: '700', color: theme.colors.gold },
   // Banner
-  banner: { height: 150, borderRadius: 22, overflow: 'hidden', marginRight: 0, ...(theme.shadow.card as object) },
+  banner: { height: 160, borderRadius: 22, overflow: 'hidden', marginRight: 0, ...(theme.shadow.card as object) },
   bannerContent: { flex: 1, padding: 20, justifyContent: 'flex-end' },
   bannerTitle: { color: '#FFF', fontSize: 20, fontWeight: '800' },
   bannerSubtitle: { color: 'rgba(255,255,255,0.9)', fontSize: 13, marginTop: 4 },
-  bannerCta: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, marginTop: 10 },
+  bannerCta: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, marginTop: 12 },
   bannerCtaTxt: { color: theme.colors.brand, fontSize: 12, fontWeight: '800' },
   bannerDots: { flexDirection: 'row', gap: 4, justifyContent: 'center', marginTop: 10 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.border },
   dotActive: { width: 18, backgroundColor: theme.colors.brand },
+  dotSep: { color: theme.colors.mutedLight },
   // Sections
   sectionTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.onSurface, marginTop: 22, marginBottom: 12, marginHorizontal: theme.spacing.lg },
   sectionTitleInline: { fontSize: 18, fontWeight: '800', color: theme.colors.onSurface },
@@ -435,16 +417,22 @@ const s = StyleSheet.create({
   hScroll: { paddingHorizontal: theme.spacing.lg, gap: 12 },
   // Quick access
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: theme.spacing.md },
-  quickTile: { width: '25%', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 6 },
-  quickIconWrap: { width: 52, height: 52, borderRadius: 16, backgroundColor: theme.colors.brandTertiary, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  quickLabel: { fontSize: 11, color: theme.colors.onSurfaceSecondary, fontWeight: '600', textAlign: 'center' },
-  // Category card
-  catCard: { flexDirection: 'row', gap: 12, alignItems: 'center', marginHorizontal: 16, padding: 14, borderRadius: 20, backgroundColor: theme.colors.brandTertiary, borderWidth: 1, borderColor: 'rgba(11,77,184,0.15)' },
-  catIconWrap: { width: 52, height: 52, borderRadius: 16, backgroundColor: theme.colors.brand, alignItems: 'center', justifyContent: 'center' },
-  catName: { fontSize: 16, fontWeight: '800', color: theme.colors.brand },
-  catExams: { fontSize: 12, color: theme.colors.onSurfaceSecondary, marginTop: 4, lineHeight: 17 },
-  catChangeBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: '#FFF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
-  catChangeTxt: { fontSize: 12, fontWeight: '800', color: theme.colors.brand },
+  quickTile: { width: '25%', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 6 },
+  quickIconWrap: { width: 54, height: 54, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  quickLabel: { fontSize: 11, color: theme.colors.onSurfaceSecondary, fontWeight: '700', textAlign: 'center' },
+  // Trending tests
+  trendCard: { width: 240, height: 190, borderRadius: 20, overflow: 'hidden', padding: 14, marginRight: 12, ...(theme.shadow.card as object) },
+  trendTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  trendTag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  trendTagTxt: { color: '#FFF', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.4 },
+  trendDiff: { backgroundColor: 'rgba(0,0,0,0.18)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  trendDiffTxt: { color: '#FFF', fontSize: 10, fontWeight: '800' },
+  trendTitle: { color: '#FFF', fontSize: 15, fontWeight: '800', marginTop: 12, lineHeight: 20 },
+  trendMetaRow: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
+  trendMetaChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  trendMetaTxt: { color: '#FFF', fontSize: 11, fontWeight: '700' },
+  trendCta: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFF', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, marginTop: 'auto' },
+  trendCtaTxt: { color: theme.colors.brand, fontSize: 12, fontWeight: '800' },
   // Current affairs
   caCard: { marginHorizontal: 16, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, overflow: 'hidden', ...(theme.shadow.soft as object) },
   caImg: { width: '100%', height: 150 },
@@ -457,63 +445,35 @@ const s = StyleSheet.create({
   caDate: { fontSize: 11, color: theme.colors.muted, fontWeight: '600' },
   readMore: { flexDirection: 'row', gap: 4, alignItems: 'center' },
   readMoreTxt: { fontSize: 12, fontWeight: '800', color: theme.colors.brand },
-  // Continue Learning hero
-  heroCard: { marginHorizontal: 16, height: 200, borderRadius: 24, overflow: 'hidden', backgroundColor: theme.colors.brand, ...(theme.shadow.card as object) },
-  heroImage: { ...StyleSheet.absoluteFillObject },
-  heroScrim: { ...StyleSheet.absoluteFillObject },
-  heroContent: { flex: 1, padding: 16, justifyContent: 'flex-end' },
-  heroBadge: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginBottom: 8 },
-  heroBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  heroTitle: { color: '#FFF', fontSize: 18, fontWeight: '800' },
-  heroInstructor: { color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 },
-  progressBar: { height: 5, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 4, marginTop: 10, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: theme.colors.gold },
-  heroBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
-  progressText: { color: '#FFF', fontSize: 12, fontWeight: '600' },
-  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
-  playText: { color: theme.colors.brand, fontSize: 12, fontWeight: '700' },
-  // Featured courses (horizontal)
-  courseCard: { width: 200, borderRadius: 16, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, marginRight: 12, overflow: 'hidden', ...(theme.shadow.soft as object) },
-  courseThumb: { width: '100%', height: 110 },
-  courseTitle: { fontSize: 13, fontWeight: '700', color: theme.colors.onSurface, lineHeight: 17 },
-  rowMini: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  miniTxt: { fontSize: 11, color: theme.colors.onSurfaceSecondary, fontWeight: '600' },
-  dotSep: { color: theme.colors.mutedLight },
-  // Live
-  liveCard: { width: 240, height: 140, borderRadius: 20, overflow: 'hidden', marginRight: 12, backgroundColor: '#000' },
-  liveBadge: { position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: theme.colors.live, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFF' },
-  liveBadgeText: { fontSize: 9, fontWeight: '800', color: '#FFF', letterSpacing: 0.5 },
-  liveTitle: { color: '#FFF', fontSize: 14, fontWeight: '700' },
-  liveMeta: { color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 },
-  // Mock tests
-  mockCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: theme.colors.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, ...(theme.shadow.soft as object) },
-  mockIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: theme.colors.brandTertiary, alignItems: 'center', justifyContent: 'center' },
-  mockTitle: { fontSize: 14, fontWeight: '700', color: theme.colors.onSurface },
-  mockMeta: { fontSize: 11, color: theme.colors.muted, marginTop: 4 },
-  // Daily Challenge
-  dcGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 16 },
-  dcCard: { width: '47.5%', padding: 14, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, ...(theme.shadow.soft as object) },
-  dcCardDone: { backgroundColor: theme.colors.surfaceSecondary, opacity: 0.9 },
-  dcIconWrap: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  // Daily Challenge (horizontal cards)
+  dcCard: { width: 170, padding: 14, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, ...(theme.shadow.soft as object) },
+  dcCardDone: { backgroundColor: theme.colors.surfaceSecondary, opacity: 0.92 },
+  dcIconWrap: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   dcName: { fontSize: 14, fontWeight: '800', color: theme.colors.onSurface, marginTop: 10 },
-  dcMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  dcMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'wrap' },
   dcMeta: { fontSize: 11, color: theme.colors.muted, fontWeight: '600' },
-  dot: { color: theme.colors.mutedLight },
-  dcDiff: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginTop: 6 },
-  dcDiffTxt: { fontSize: 10, fontWeight: '800' },
+  dcRewardRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  dcReward: { fontSize: 11, color: theme.colors.gold, fontWeight: '800' },
   dcCta: { flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.brand, paddingVertical: 8, borderRadius: 10, marginTop: 10 },
   dcCtaTxt: { color: '#FFF', fontSize: 11, fontWeight: '800' },
-  // Jobs
-  jobCard: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14, backgroundColor: theme.colors.surface, borderRadius: 18, borderWidth: 1, borderColor: theme.colors.border, ...(theme.shadow.soft as object) },
-  jobLogo: { width: 48, height: 48, borderRadius: 12, backgroundColor: theme.colors.brandTertiary, alignItems: 'center', justifyContent: 'center' },
-  jobLogoTxt: { fontSize: 11, fontWeight: '800', color: theme.colors.brand },
-  jobTitle: { fontSize: 14, fontWeight: '700', color: theme.colors.onSurface },
-  jobOrg: { fontSize: 11, color: theme.colors.muted, marginTop: 2 },
-  jobMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  jobMeta: { fontSize: 11, color: theme.colors.muted },
-  applyBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: theme.colors.brand },
-  applyTxt: { color: '#FFF', fontSize: 11, fontWeight: '800' },
+  // Jobs redesigned
+  jobCard: { padding: 14, backgroundColor: theme.colors.surface, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border, ...(theme.shadow.soft as object) },
+  jobHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  jobLogo: { width: 52, height: 52, borderRadius: 14, backgroundColor: theme.colors.brandTertiary, alignItems: 'center', justifyContent: 'center' },
+  jobLogoTxt: { fontSize: 12, fontWeight: '900', color: theme.colors.brand },
+  jobTitle: { fontSize: 15, fontWeight: '800', color: theme.colors.onSurface, lineHeight: 20 },
+  jobOrg: { fontSize: 12, color: theme.colors.muted, marginTop: 3, fontWeight: '600' },
+  postsBadge: { alignItems: 'center', backgroundColor: theme.colors.goldTint, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  postsBadgeTxt: { fontSize: 15, fontWeight: '900', color: theme.colors.gold },
+  postsBadgeSub: { fontSize: 9, fontWeight: '700', color: theme.colors.gold, letterSpacing: 0.3 },
+  jobDivider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.border, marginVertical: 12 },
+  jobBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  jobMetaCol: { flex: 1 },
+  jobMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  jobMeta: { fontSize: 12, color: theme.colors.muted },
+  jobMetaStrong: { fontWeight: '800', color: theme.colors.onSurface },
+  viewBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.colors.brand, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
+  viewBtnTxt: { color: '#FFF', fontSize: 12, fontWeight: '800' },
   // FAB
   fabWrap: { position: 'absolute', right: 16, bottom: 96, borderRadius: 999, overflow: 'hidden', ...(theme.shadow.strong as object) },
   fabInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12 },

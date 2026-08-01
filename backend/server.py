@@ -34,6 +34,7 @@ from home_extras import (
     init_home, ensure_home_indexes,
     public_router as home_extras_router,
 )
+from feed import init_feed, ensure_feed_indexes, router as feed_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -54,6 +55,7 @@ logger = logging.getLogger(__name__)
 init_auth(db)
 init_categories(db)
 init_home(db)
+init_feed(db)
 
 
 def _get_courses():
@@ -65,6 +67,7 @@ app.include_router(auth_router)
 app.include_router(categories_public_router)
 app.include_router(categories_admin_router)
 app.include_router(home_extras_router)
+app.include_router(feed_router)
 
 
 @app.on_event("startup")
@@ -72,6 +75,7 @@ async def _startup():
     await ensure_indexes(db)
     await seed_categories(db)
     await ensure_home_indexes(db)
+    await ensure_feed_indexes(db)
 
 
 # ---------------- Models ----------------

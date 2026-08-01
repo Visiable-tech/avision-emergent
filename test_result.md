@@ -101,3 +101,121 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Frontend restructure: change Tab Bar to (Home, Video Course, Test, Live Class, Profile),
+  rewrite Home Screen with (Banner Slider → Quick Access grid incl. Feed → Trending Tests
+  horizontal slider → Daily Current Affairs → Daily Challenge slider → redesigned Job Alerts).
+  Add view-only Feed screen (social-style posts) and Job Alert detail page. Keep
+  glassmorphism white theme + rounded cards, preserve Category/i18n contexts.
+
+backend:
+  - task: "Feed module endpoints"
+    implemented: true
+    working: true
+    file: "/app/backend/feed.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/feed, /api/feed/{id}, comments and toggle_like already wired."
+  - task: "Home extras (banners, job alerts, job detail, daily challenges)"
+    implemented: true
+    working: true
+    file: "/app/backend/home_extras.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Verified /api/banners, /api/job-alerts, /api/job-alerts/{id}, /api/daily-challenges category-filtered."
+
+frontend:
+  - task: "Tab bar update (Home, Video Course, Test, Live Class, Profile)"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(tabs)/_layout.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Screenshot confirms new tab order; current-affairs hidden but reachable via route."
+  - task: "Home screen restructure (Banner→Quick Access→Trending Tests→CA→DC→Jobs)"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(tabs)/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Complete rewrite. Includes Feed tile in Quick Access grid; trending tests as horizontal gradient cards; job cards redesigned with posted/last-date/view-details CTA that opens /job-alert/[id]."
+  - task: "Feed screen (view-only social-style posts)"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/feed.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Screenshot verified. Posts show avatar, type pill, image, description, tags, like/comment counts (view-only), share pill."
+  - task: "Live Class tab screen"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(tabs)/live-class.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Dedicated screen with Live Now big cards + Upcoming list; empty state included."
+  - task: "Job Alert detail page"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/job-alert/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Hero gradient with org logo/title, stat cards (salary/posts/age), sections for About, Eligibility, Important Dates, Selection Process, Important Links + Apply Now floating CTA."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.1"
+  test_sequence: 4
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Home screen restructure (Banner→Quick Access→Trending Tests→CA→DC→Jobs)"
+    - "Feed screen (view-only social-style posts)"
+    - "Job Alert detail page"
+    - "Live Class tab screen"
+    - "Tab bar update (Home, Video Course, Test, Live Class, Profile)"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Completed frontend restructure. Backend routes (/api/feed, /api/banners,
+      /api/job-alerts, /api/job-alerts/{id}, /api/daily-challenges) already wired.
+      New screens: (tabs)/live-class.tsx, feed.tsx, job-alert/[id].tsx. Home rewritten
+      with new vertical order. Tab bar changed. Please test:
+        1. GET /api/feed with & without ?category=banking and ?user_id
+        2. GET /api/job-alerts/{id} shape used by detail page
+        3. Frontend: login as test@avision.com / Test@123, verify tabs, Feed nav,
+           job-detail nav, live-class tab renders, banner auto-slide, category dropdown
+           still filters home content.

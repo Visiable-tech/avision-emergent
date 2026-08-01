@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { theme } from '@/src/theme';
@@ -14,8 +14,8 @@ export default function TabsLayout() {
         tabBarActiveTintColor: theme.colors.brand,
         tabBarInactiveTintColor: theme.colors.mutedLight,
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
+          fontSize: 10.5,
+          fontWeight: '700',
           marginBottom: Platform.OS === 'ios' ? 0 : 4,
         },
         tabBarStyle: {
@@ -33,22 +33,32 @@ export default function TabsLayout() {
           </BlurView>
         ),
         tabBarIcon: ({ color, focused }) => {
-          const icons: Record<string, any> = {
-            index: focused ? 'home' : 'home-outline',
-            courses: focused ? 'play-circle' : 'play-circle-outline',
-            tests: focused ? 'document-text' : 'document-text-outline',
-            'current-affairs': focused ? 'newspaper' : 'newspaper-outline',
-            profile: focused ? 'person' : 'person-outline',
-          };
-          return <Ionicons name={icons[route.name] || 'ellipse-outline'} size={focused ? 26 : 24} color={color} />;
+          if (route.name === 'index') {
+            return <Ionicons name={focused ? 'home' : 'home-outline'} size={focused ? 26 : 24} color={color} />;
+          }
+          if (route.name === 'courses') {
+            return <MaterialCommunityIcons name={focused ? 'play-box-multiple' : 'play-box-multiple-outline'} size={focused ? 26 : 24} color={color} />;
+          }
+          if (route.name === 'tests') {
+            return <Ionicons name={focused ? 'document-text' : 'document-text-outline'} size={focused ? 26 : 24} color={color} />;
+          }
+          if (route.name === 'live-class') {
+            return <MaterialCommunityIcons name={focused ? 'video-wireless' : 'video-wireless-outline'} size={focused ? 26 : 24} color={color} />;
+          }
+          if (route.name === 'profile') {
+            return <Ionicons name={focused ? 'person' : 'person-outline'} size={focused ? 26 : 24} color={color} />;
+          }
+          return <Ionicons name="ellipse-outline" size={24} color={color} />;
         },
       })}
     >
       <Tabs.Screen name="index" options={{ title: t('home'), tabBarButtonTestID: 'tab-home' }} />
-      <Tabs.Screen name="courses" options={{ title: t('courses'), tabBarButtonTestID: 'tab-courses' }} />
-      <Tabs.Screen name="tests" options={{ title: t('tests'), tabBarButtonTestID: 'tab-tests' }} />
-      <Tabs.Screen name="current-affairs" options={{ title: t('affairs'), tabBarButtonTestID: 'tab-affairs' }} />
+      <Tabs.Screen name="courses" options={{ title: t('videoCourse'), tabBarButtonTestID: 'tab-courses' }} />
+      <Tabs.Screen name="tests" options={{ title: t('test'), tabBarButtonTestID: 'tab-tests' }} />
+      <Tabs.Screen name="live-class" options={{ title: t('liveClass'), tabBarButtonTestID: 'tab-live-class' }} />
       <Tabs.Screen name="profile" options={{ title: t('profile'), tabBarButtonTestID: 'tab-profile' }} />
+      {/* Kept but hidden – reachable via deep links */}
+      <Tabs.Screen name="current-affairs" options={{ href: null }} />
     </Tabs>
   );
 }

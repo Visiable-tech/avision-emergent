@@ -75,6 +75,19 @@ export const api = {
     req('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: () => req('/auth/me', undefined, true),
   logout: () => req('/auth/logout', { method: 'POST' }, true),
+  // Feed
+  feed: (category?: string, userId?: string) => {
+    const p = new URLSearchParams();
+    if (category) p.set('category', category);
+    if (userId) p.set('user_id', userId);
+    const q = p.toString();
+    return req(`/feed${q ? `?${q}` : ''}`);
+  },
+  feedDetail: (postId: string, userId?: string) =>
+    req(`/feed/${postId}${userId ? `?user_id=${userId}` : ''}`),
+  feedLike: (postId: string, userId: string) =>
+    req(`/feed/${postId}/like?user_id=${encodeURIComponent(userId)}`, { method: 'POST' }),
+  feedComments: (postId: string) => req(`/feed/${postId}/comments`),
   forgotPassword: (email: string) =>
     req('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
   resetPassword: (token: string, new_password: string) =>
