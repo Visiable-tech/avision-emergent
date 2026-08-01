@@ -45,13 +45,16 @@ export default function Home() {
   const [challenges, setChallenges] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [reels, setReels] = useState<any[]>([]);
+  const [liveBatches, setLiveBatches] = useState<any[]>([]);
   const [bannerIdx, setBannerIdx] = useState(0);
+  const [batchIdx, setBatchIdx] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const bannerRef = useRef<FlatList<any>>(null);
+  const batchRef = useRef<FlatList<any>>(null);
 
   const load = useCallback(async () => {
     try {
-      const [g, b, la, mt, dc, jb, rl] = await Promise.all([
+      const [g, b, la, mt, dc, jb, rl, lb] = await Promise.all([
         api.greeting(),
         api.banners(categoryId || undefined),
         api.currentAffairsLatest(categoryId || undefined).catch(() => null),
@@ -59,6 +62,7 @@ export default function Home() {
         api.dailyChallenges(categoryId || undefined, user?.user_id),
         api.jobAlerts(categoryId || undefined, 10),
         api.reels(categoryId || undefined, 10).catch(() => ({ reels: [] })),
+        api.liveBatches(categoryId || undefined, 10).catch(() => ({ batches: [] })),
       ]);
       setGreeting(g);
       setBanners(b.banners || []);
@@ -67,6 +71,7 @@ export default function Home() {
       setChallenges(dc.challenges || []);
       setJobs(jb.jobs || []);
       setReels(rl.reels || []);
+      setLiveBatches(lb.batches || []);
     } catch (e) { console.warn('home load', e); }
   }, [categoryId, user?.user_id]);
 
@@ -84,6 +89,19 @@ export default function Home() {
     }, 4500);
     return () => clearInterval(id);
   }, [banners.length]);
+
+  // Auto-slide Live Batches
+  useEffect(() => {
+    if (liveBatches.length < 2) return;
+    const id = setInterval(() => {
+      setBatchIdx((i) => {
+        const next = (i + 1) % liveBatches.length;
+        batchRef.current?.scrollToOffset({ offset: next * BANNER_W, animated: true });
+        return next;
+      });
+    }, 5500);
+    return () => clearInterval(id);
+  }, [liveBatches.length]);
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
@@ -196,55 +214,112 @@ export default function Home() {
           ))}
         </View>
 
-        {/* 3. Trending Tests (horizontal slider) */}
-        {mocks.length > 0 && (
+        {/* 3. Live Classes – premium promo banner slider */}
+        {liveBatches.length > 0 && (
           <>
-            <SectionRow title={t('trendingTests')} onViewAll={() => router.push('/(tabs)/tests')} />
+            <SectionRow title="Live Classes" onViewAll={() => router.push(`/live-batch/${liveBatches[0].id}`)} />
             <FlatList
-              data={mocks.slice(0, 8)}
+              ref={batchRef}
+              testID="live-batch-slider"
+              data={liveBatches}
               horizontal
+              pagingEnabled
               showsHorizontalScrollIndicator={false}
-              keyExtractor={(i: any) => i.id}
-              contentContainerStyle={s.hScroll}
-              renderItem={({ item, index }: any) => (
+              keyExtractor={(b: any) => b.id}
+              onMomentumScrollEnd={(e) => setBatchIdx(Math.round(e.nativeEvent.contentOffset.x / BANNER_W))}
+              contentContainerStyle={{ paddingHorizontal: 16 }}
+              renderItem={({ item: b }: any) => (
                 <Pressable
-                  key={item.id}
-                  testID={`trending-${item.id}`}
-                  style={s.trendCard}
-                  onPress={() => router.push('/(tabs)/tests')}
+                  testID={`live-batch-${b.id}`}
+                  style={[lb.card, { width: BANNER_W }]}
+                  onPress={() => router.push(`/live-batch/${b.id}`)}
                 >
+                  {/* Base gradient */}
                   <LinearGradient
-                    colors={index % 2 === 0 ? ['#0B4DB8', '#083A8E'] : ['#C68A2D', '#9C6D22']}
+                    colors={b.gradient || ['#0B4DB8', '#083A8E']}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                     style={StyleSheet.absoluteFillObject}
                   />
-                  <View style={s.trendTopRow}>
-                    <View style={s.trendTag}>
-                      <Ionicons name="flame" size={11} color="#FFF" />
-                      <Text style={s.trendTagTxt}>TRENDING</Text>
+                  {/* Faint image overlay */}
+                  <Image source={{ uri: b.banner_image }} style={[StyleSheet.absoluteFillObject, { opacity: 0.18 }]} contentFit="cover" />
+                  {/* Decorative floating shapes */}
+                  <View style={lb.shapeA} />
+                  <View style={lb.shapeB} />
+
+                  {/* Top: Live badge + Institute badge */}
+                  <View style={lb.topRow}>
+                    <View style={lb.liveBadge}>
+                      <View style={lb.livePulse} />
+                      <Text style={lb.liveBadgeTxt}>LIVE</Text>
                     </View>
-                    <View style={s.trendDiff}>
-                      <Text style={s.trendDiffTxt}>{item.difficulty}</Text>
+                    <View style={lb.instituteChip}>
+                      <Ionicons name="school" size={11} color="#FFF" />
+                      <Text style={lb.instituteChipTxt}>{b.faculty_logo || 'AVISION'}</Text>
                     </View>
+                    {b.discount_pct ? (
+                      <View style={[lb.discountRibbon, { backgroundColor: b.accent || '#EF4444' }]}>
+                        <Text style={lb.discountRibbonTxt}>{b.discount_pct}% OFF</Text>
+                      </View>
+                    ) : null}
                   </View>
-                  <Text style={s.trendTitle} numberOfLines={2}>{item.title}</Text>
-                  <View style={s.trendMetaRow}>
-                    <View style={s.trendMetaChip}>
-                      <Ionicons name="help-circle-outline" size={12} color="#FFF" />
-                      <Text style={s.trendMetaTxt}>{item.questions} Qs</Text>
-                    </View>
-                    <View style={s.trendMetaChip}>
-                      <Ionicons name="time-outline" size={12} color="#FFF" />
-                      <Text style={s.trendMetaTxt}>{item.duration}m</Text>
-                    </View>
+
+                  {/* Batch label */}
+                  <Text style={lb.batchLabel}>{b.batch_label}</Text>
+
+                  {/* Course name */}
+                  <View style={lb.titleRow}>
+                    <Text style={lb.courseName} numberOfLines={1}>{b.name}</Text>
                   </View>
-                  <View style={s.trendCta}>
-                    <Text style={s.trendCtaTxt}>Attempt Now</Text>
-                    <Ionicons name="arrow-forward" size={14} color={theme.colors.brand} />
+                  <Text style={lb.examName} numberOfLines={1}>{b.exam_name}</Text>
+                  <Text style={lb.faculty} numberOfLines={1}>{b.faculty}</Text>
+
+                  {/* Features */}
+                  <View style={lb.featuresBox}>
+                    {(b.features || []).slice(0, 3).map((f: string, i: number) => (
+                      <View key={i} style={lb.featureRow}>
+                        <View style={lb.checkChip}>
+                          <Ionicons name="checkmark" size={10} color="#FFF" />
+                        </View>
+                        <Text style={lb.featureTxt} numberOfLines={1}>{f}</Text>
+                      </View>
+                    ))}
                   </View>
+
+                  {/* Bottom row: dates + price + CTA */}
+                  <View style={lb.bottomBox}>
+                    <View style={{ flex: 1 }}>
+                      <View style={lb.startsRow}>
+                        <Ionicons name="calendar" size={11} color="rgba(255,255,255,0.85)" />
+                        <Text style={lb.startsLbl}>Starts {b.start_date_short}</Text>
+                      </View>
+                      <View style={lb.priceRow}>
+                        <Text style={lb.priceStrike}>₹{Number(b.price).toLocaleString('en-IN')}</Text>
+                        <Text style={lb.priceOffer}>₹{Number(b.offer_price).toLocaleString('en-IN')}</Text>
+                      </View>
+                    </View>
+                    <Pressable style={lb.ctaBtn} onPress={() => router.push(`/live-batch/${b.id}`)}>
+                      <Text style={lb.ctaBtnTxt}>{b.cta || 'Enroll Now'}</Text>
+                      <Ionicons name="arrow-forward" size={12} color={b.gradient?.[0] || '#0B4DB8'} />
+                    </Pressable>
+                  </View>
+
+                  {/* Limited-offer strip */}
+                  {b.is_limited_offer ? (
+                    <View style={[lb.stripFooter, { backgroundColor: b.accent || '#EF4444' }]}>
+                      <Ionicons name="flash" size={10} color="#FFF" />
+                      <Text style={lb.stripFooterTxt}>{b.offer_valid_till || 'Limited Time Only!'}</Text>
+                      {b.eligibility ? <Text style={lb.stripFooterSub}>• {b.eligibility}</Text> : null}
+                    </View>
+                  ) : null}
                 </Pressable>
               )}
             />
+            {/* Dots */}
+            <View style={s.bannerDots}>
+              {liveBatches.map((_: any, i: number) => (
+                <View key={i} style={[s.dot, i === batchIdx && s.dotActive]} />
+              ))}
+            </View>
           </>
         )}
 
@@ -327,7 +402,59 @@ export default function Home() {
           </>
         )}
 
-        {/* 6. Latest Job Alerts – redesigned */}
+        {/* 6. Trending Tests (horizontal slider) */}
+        {mocks.length > 0 && (
+          <>
+            <SectionRow title={t('trendingTests')} onViewAll={() => router.push('/(tabs)/tests')} />
+            <FlatList
+              data={mocks.slice(0, 8)}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(i: any) => i.id}
+              contentContainerStyle={s.hScroll}
+              renderItem={({ item, index }: any) => (
+                <Pressable
+                  key={item.id}
+                  testID={`trending-${item.id}`}
+                  style={s.trendCard}
+                  onPress={() => router.push('/(tabs)/tests')}
+                >
+                  <LinearGradient
+                    colors={index % 2 === 0 ? ['#0B4DB8', '#083A8E'] : ['#C68A2D', '#9C6D22']}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                  <View style={s.trendTopRow}>
+                    <View style={s.trendTag}>
+                      <Ionicons name="flame" size={11} color="#FFF" />
+                      <Text style={s.trendTagTxt}>TRENDING</Text>
+                    </View>
+                    <View style={s.trendDiff}>
+                      <Text style={s.trendDiffTxt}>{item.difficulty}</Text>
+                    </View>
+                  </View>
+                  <Text style={s.trendTitle} numberOfLines={2}>{item.title}</Text>
+                  <View style={s.trendMetaRow}>
+                    <View style={s.trendMetaChip}>
+                      <Ionicons name="help-circle-outline" size={12} color="#FFF" />
+                      <Text style={s.trendMetaTxt}>{item.questions} Qs</Text>
+                    </View>
+                    <View style={s.trendMetaChip}>
+                      <Ionicons name="time-outline" size={12} color="#FFF" />
+                      <Text style={s.trendMetaTxt}>{item.duration}m</Text>
+                    </View>
+                  </View>
+                  <View style={s.trendCta}>
+                    <Text style={s.trendCtaTxt}>Attempt Now</Text>
+                    <Ionicons name="arrow-forward" size={14} color={theme.colors.brand} />
+                  </View>
+                </Pressable>
+              )}
+            />
+          </>
+        )}
+
+        {/* 7. Latest Job Alerts – redesigned */}
         {jobs.length > 0 && (
           <>
             <SectionRow title={t('latestJobs')} onViewAll={() => router.push('/job-alerts')} />
@@ -456,6 +583,76 @@ function SectionRow({ title, onViewAll }: { title: string; onViewAll?: () => voi
     </View>
   );
 }
+
+// Live Batch card styles (premium promotional card)
+const lb = StyleSheet.create({
+  card: {
+    height: 340,
+    marginRight: 0,
+    borderRadius: 24,
+    overflow: 'hidden',
+    padding: 16,
+    ...(Platform.OS === 'ios'
+      ? { shadowColor: '#0B4DB8', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 16 }
+      : { elevation: 8 }),
+  },
+  shapeA: {
+    position: 'absolute', right: -40, top: -40,
+    width: 160, height: 160, borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  shapeB: {
+    position: 'absolute', left: -30, bottom: 40,
+    width: 110, height: 110, borderRadius: 55,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  liveBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#EF4444', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999,
+  },
+  livePulse: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFF' },
+  liveBadgeTxt: { color: '#FFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
+  instituteChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.16)', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999,
+  },
+  instituteChipTxt: { color: '#FFF', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  discountRibbon: { marginLeft: 'auto', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  discountRibbonTxt: { color: '#FFF', fontSize: 11, fontWeight: '900', letterSpacing: 0.4 },
+  batchLabel: { color: '#FCD34D', fontSize: 11, fontWeight: '800', letterSpacing: 1.4, marginTop: 14 },
+  titleRow: { marginTop: 4 },
+  courseName: { color: '#FFF', fontSize: 26, fontWeight: '900', letterSpacing: -0.3 },
+  examName: { color: 'rgba(255,255,255,0.95)', fontSize: 13, fontWeight: '600', marginTop: 2 },
+  faculty: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '600', marginTop: 2 },
+  featuresBox: {
+    marginTop: 12, padding: 10, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+  },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 },
+  checkChip: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#10B981', alignItems: 'center', justifyContent: 'center' },
+  featureTxt: { flex: 1, color: '#FFF', fontSize: 11.5, fontWeight: '600' },
+  bottomBox: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
+  startsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  startsLbl: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '700' },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 4 },
+  priceStrike: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600', textDecorationLine: 'line-through' },
+  priceOffer: { color: '#FFF', fontSize: 22, fontWeight: '900' },
+  ctaBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
+  },
+  ctaBtnTxt: { fontSize: 13, fontWeight: '900', color: '#0B4DB8', letterSpacing: 0.2 },
+  stripFooter: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 6,
+  },
+  stripFooterTxt: { color: '#FFF', fontSize: 11, fontWeight: '800' },
+  stripFooterSub: { color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: '600' },
+});
+
 
 const s = StyleSheet.create({
   header: { backgroundColor: theme.colors.surface, paddingHorizontal: theme.spacing.lg },

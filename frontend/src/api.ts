@@ -42,6 +42,9 @@ export const api = {
   reels: (category?: string, limit = 20) =>
     req(`/reels?limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
   reelDetail: (id: string) => req(`/reels/${id}`),
+  liveBatches: (category?: string, limit = 10) =>
+    req(`/live-batches?limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
+  liveBatchDetail: (id: string) => req(`/live-batches/${id}`),
   dailyChallenges: (category?: string, userId?: string) => {
     const p = new URLSearchParams();
     if (category) p.set('category', category);
