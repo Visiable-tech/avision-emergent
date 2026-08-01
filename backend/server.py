@@ -35,6 +35,7 @@ from home_extras import (
     public_router as home_extras_router,
 )
 from feed import init_feed, ensure_feed_indexes, router as feed_router
+from reels import router as reels_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -68,6 +69,7 @@ app.include_router(categories_public_router)
 app.include_router(categories_admin_router)
 app.include_router(home_extras_router)
 app.include_router(feed_router)
+app.include_router(reels_router)
 
 
 @app.on_event("startup")

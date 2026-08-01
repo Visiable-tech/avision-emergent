@@ -44,19 +44,21 @@ export default function Home() {
   const [mocks, setMocks] = useState<any[]>([]);
   const [challenges, setChallenges] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
+  const [reels, setReels] = useState<any[]>([]);
   const [bannerIdx, setBannerIdx] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const bannerRef = useRef<FlatList<any>>(null);
 
   const load = useCallback(async () => {
     try {
-      const [g, b, la, mt, dc, jb] = await Promise.all([
+      const [g, b, la, mt, dc, jb, rl] = await Promise.all([
         api.greeting(),
         api.banners(categoryId || undefined),
         api.currentAffairsLatest(categoryId || undefined).catch(() => null),
         api.mockTests(categoryId || undefined),
         api.dailyChallenges(categoryId || undefined, user?.user_id),
         api.jobAlerts(categoryId || undefined, 10),
+        api.reels(categoryId || undefined, 10).catch(() => ({ reels: [] })),
       ]);
       setGreeting(g);
       setBanners(b.banners || []);
@@ -64,6 +66,7 @@ export default function Home() {
       setMocks(mt.tests || []);
       setChallenges(dc.challenges || []);
       setJobs(jb.jobs || []);
+      setReels(rl.reels || []);
     } catch (e) { console.warn('home load', e); }
   }, [categoryId, user?.user_id]);
 
@@ -371,6 +374,52 @@ export default function Home() {
             </View>
           </>
         )}
+
+        {/* 7. Videos & Reels */}
+        {reels.length > 0 && (
+          <>
+            <SectionRow title="Videos & Reels" onViewAll={() => router.push('/reels/r1')} />
+            <FlatList
+              data={reels}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(r: any) => r.id}
+              contentContainerStyle={s.hScroll}
+              renderItem={({ item: r }: any) => (
+                <Pressable
+                  testID={`reel-${r.id}`}
+                  style={s.reelCard}
+                  onPress={() => router.push(`/reels/${r.id}`)}
+                >
+                  <Image source={{ uri: r.thumbnail }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
+                  <LinearGradient colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.65)']} style={StyleSheet.absoluteFillObject} />
+                  {/* Play chip */}
+                  <View style={s.reelPlay}>
+                    <Ionicons name="play" size={16} color="#0F172A" />
+                  </View>
+                  {/* Duration / Views badge */}
+                  <View style={s.reelTop}>
+                    <View style={s.reelViews}>
+                      <Ionicons name="eye" size={11} color="#FFF" />
+                      <Text style={s.reelViewsTxt}>{formatViews(r.views)}</Text>
+                    </View>
+                    <View style={s.reelDur}>
+                      <Text style={s.reelDurTxt}>{Math.floor((r.duration_sec || 0) / 60)}:{String((r.duration_sec || 0) % 60).padStart(2, '0')}</Text>
+                    </View>
+                  </View>
+                  {/* Brand watermark + title */}
+                  <View style={s.reelBottom}>
+                    <View style={s.reelBrand}>
+                      <Ionicons name="videocam" size={10} color="#FFF" />
+                      <Text style={s.reelBrandTxt} numberOfLines={1}>{r.brand}</Text>
+                    </View>
+                    <Text style={s.reelTitle} numberOfLines={2}>{r.title}</Text>
+                  </View>
+                </Pressable>
+              )}
+            />
+          </>
+        )}
       </ScrollView>
 
       {/* Floating AI Tutor */}
@@ -386,6 +435,13 @@ export default function Home() {
 
 function SectionTitle({ title }: { title: string }) {
   return <Text style={s.sectionTitle}>{title}</Text>;
+}
+
+function formatViews(n: number): string {
+  if (!n) return '0';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
 }
 function SectionRow({ title, onViewAll }: { title: string; onViewAll?: () => void }) {
   const { t } = useI18n();
@@ -490,6 +546,25 @@ const s = StyleSheet.create({
   jobMetaStrong: { fontWeight: '800', color: theme.colors.onSurface },
   viewBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.colors.brand, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
   viewBtnTxt: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+  // Reels
+  reelCard: {
+    width: 150, height: 240, borderRadius: 22, overflow: 'hidden', marginRight: 12, backgroundColor: '#111',
+    ...(theme.shadow.card as object),
+  },
+  reelPlay: {
+    position: 'absolute', top: '50%', left: '50%', marginTop: -18, marginLeft: -18,
+    width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  reelTop: { position: 'absolute', top: 10, left: 10, right: 10, flexDirection: 'row', justifyContent: 'space-between' },
+  reelViews: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
+  reelViewsTxt: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+  reelDur: { backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  reelDurTxt: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+  reelBottom: { position: 'absolute', bottom: 10, left: 10, right: 10 },
+  reelBrand: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, marginBottom: 6 },
+  reelBrandTxt: { color: '#FFF', fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
+  reelTitle: { color: '#FFF', fontSize: 12, fontWeight: '700', lineHeight: 16 },
   // FAB
   fabWrap: { position: 'absolute', right: 16, borderRadius: 999, overflow: 'hidden', ...(theme.shadow.strong as object) },
   fabInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12 },

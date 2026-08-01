@@ -39,6 +39,9 @@ export const api = {
   banners: (category?: string) => req(`/banners${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   jobAlerts: (category?: string, limit = 20) => req(`/job-alerts?limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
   jobDetail: (id: string) => req(`/job-alerts/${id}`),
+  reels: (category?: string, limit = 20) =>
+    req(`/reels?limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
+  reelDetail: (id: string) => req(`/reels/${id}`),
   dailyChallenges: (category?: string, userId?: string) => {
     const p = new URLSearchParams();
     if (category) p.set('category', category);
