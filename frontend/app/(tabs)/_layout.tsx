@@ -65,7 +65,7 @@ export default function TabsLayout() {
             return <MaterialCommunityIcons name={focused ? 'play-box-multiple' : 'play-box-multiple-outline'} size={focused ? 26 : 24} color={color} />;
           }
           if (route.name === 'tests') {
-            return <Ionicons name={focused ? 'document-text' : 'document-text-outline'} size={focused ? 26 : 24} color={color} />;
+            return <MaterialCommunityIcons name={focused ? 'crown' : 'crown-outline'} size={focused ? 26 : 24} color={color} />;
           }
           if (route.name === 'live-class') {
             return <MaterialCommunityIcons name={focused ? 'video-wireless' : 'video-wireless-outline'} size={focused ? 26 : 24} color={color} />;
@@ -79,7 +79,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: t('home'), tabBarButtonTestID: 'tab-home' }} />
       <Tabs.Screen name="courses" options={{ title: t('videoCourse'), tabBarButtonTestID: 'tab-courses' }} />
-      <Tabs.Screen name="tests" options={{ title: t('test'), tabBarButtonTestID: 'tab-tests' }} />
+      <Tabs.Screen name="tests" options={{ title: 'Test Prime', tabBarButtonTestID: 'tab-test-prime' }} />
       <Tabs.Screen name="live-class" options={{ title: t('liveClass'), tabBarButtonTestID: 'tab-live-class' }} />
       <Tabs.Screen name="profile" options={{ title: t('profile'), tabBarButtonTestID: 'tab-profile' }} />
       {/* Kept but hidden – reachable via deep links */}

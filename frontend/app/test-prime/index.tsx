@@ -59,9 +59,15 @@ export default function TestPrimeLanding() {
       <LinearGradient colors={['#7C4A0C', '#B7791F', '#F59E0B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
         <SafeAreaView edges={['top']}>
           <View style={s.headerRow}>
-            <Pressable onPress={() => router.back()} testID="tp-back" hitSlop={12} style={s.iconBtn}>
-              <Ionicons name="chevron-back" size={22} color="#FFF" />
-            </Pressable>
+            {router.canGoBack() ? (
+              <Pressable onPress={() => router.back()} testID="tp-back" hitSlop={12} style={s.iconBtn}>
+                <Ionicons name="chevron-back" size={22} color="#FFF" />
+              </Pressable>
+            ) : (
+              <View style={s.iconBtn}>
+                <MaterialCommunityIcons name="crown" size={20} color="#FCD34D" />
+              </View>
+            )}
             <View style={{ flex: 1, marginLeft: 6 }}>
               <View style={s.brandChip}>
                 <MaterialCommunityIcons name="crown" size={12} color="#7C4A0C" />
@@ -112,7 +118,7 @@ export default function TestPrimeLanding() {
       </LinearGradient>
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 60 }}
+        contentContainerStyle={{ paddingBottom: 140 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#B7791F" />}
         showsVerticalScrollIndicator={false}
       >

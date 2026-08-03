@@ -46,7 +46,7 @@ export default function Home() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [reels, setReels] = useState<any[]>([]);
   const [liveBatches, setLiveBatches] = useState<any[]>([]);
-  const [tpEntitlement, setTpEntitlement] = useState<any>(null);
+  const [featCourses, setFeatCourses] = useState<any[]>([]);
   const [bannerIdx, setBannerIdx] = useState(0);
   const [batchIdx, setBatchIdx] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,7 +55,7 @@ export default function Home() {
 
   const load = useCallback(async () => {
     try {
-      const [g, b, la, mt, dc, jb, rl, lb, ent] = await Promise.all([
+      const [g, b, la, mt, dc, jb, rl, lb, fc] = await Promise.all([
         api.greeting(),
         api.banners(categoryId || undefined),
         api.currentAffairsLatest(categoryId || undefined).catch(() => null),
@@ -64,7 +64,7 @@ export default function Home() {
         api.jobAlerts(categoryId || undefined, 10),
         api.reels(categoryId || undefined, 10).catch(() => ({ reels: [] })),
         api.liveBatches(categoryId || undefined, 10).catch(() => ({ batches: [] })),
-        user?.user_id ? api.tpEntitlement(user.user_id).catch(() => null) : Promise.resolve(null),
+        api.activeCourses(categoryId || undefined).catch(() => ({ courses: [] })),
       ]);
       setGreeting(g);
       setBanners(b.banners || []);
@@ -74,7 +74,7 @@ export default function Home() {
       setJobs(jb.jobs || []);
       setReels(rl.reels || []);
       setLiveBatches(lb.batches || []);
-      setTpEntitlement(ent);
+      setFeatCourses(fc.courses || []);
     } catch (e) { console.warn('home load', e); }
   }, [categoryId, user?.user_id]);
 
@@ -236,77 +236,6 @@ export default function Home() {
           </Pressable>
         </View>
 
-        {/* 2b. TEST PRIME premium card */}
-        {(() => {
-          const isPrime = !!tpEntitlement?.is_prime;
-          return (
-            <Pressable
-              testID="test-prime-card"
-              style={tp.card}
-              onPress={() => router.push('/test-prime')}
-            >
-              <LinearGradient
-                colors={['#8B5A2B', '#C68A2D', '#F59E0B']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFillObject}
-              />
-              {/* Decorative crown backdrop */}
-              <View style={tp.crownBg}>
-                <MaterialCommunityIcons name="crown-outline" size={140} color="rgba(255,255,255,0.12)" />
-              </View>
-
-              <View style={tp.topRow}>
-                <View style={tp.crownChip}>
-                  <MaterialCommunityIcons name="crown" size={12} color="#7C4A0C" />
-                  <Text style={tp.crownChipTxt}>AVISION</Text>
-                </View>
-                <View style={{ flex: 1 }} />
-                {isPrime ? (
-                  <View style={tp.activeChip}>
-                    <Ionicons name="checkmark-circle" size={12} color="#065F46" />
-                    <Text style={tp.activeChipTxt}>PRIME ACTIVE</Text>
-                  </View>
-                ) : (
-                  <View style={tp.lockChip}>
-                    <Ionicons name="lock-closed" size={11} color="#FFF" />
-                    <Text style={tp.lockChipTxt}>PRIME</Text>
-                  </View>
-                )}
-              </View>
-
-              <Text style={tp.title}>TEST PRIME</Text>
-              <Text style={tp.tag}>One Pass. Every Exam. Unlimited Practice.</Text>
-
-              {/* Feature bullets in grid */}
-              <View style={tp.featGrid}>
-                {['Full Mocks', 'Sectional', 'Topic', 'PYQ', 'Speed', 'All India Rank'].map((f) => (
-                  <View key={f} style={tp.featPill}>
-                    <Ionicons name="checkmark" size={11} color="#7C4A0C" />
-                    <Text style={tp.featPillTxt}>{f}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <View style={tp.ctaRow}>
-                <View style={tp.stats}>
-                  <Text style={tp.statVal}>500+</Text>
-                  <Text style={tp.statLbl}>Exams</Text>
-                </View>
-                <View style={tp.statsDiv} />
-                <View style={tp.stats}>
-                  <Text style={tp.statVal}>10K+</Text>
-                  <Text style={tp.statLbl}>Tests</Text>
-                </View>
-                <View style={{ flex: 1 }} />
-                <View style={tp.ctaBtn}>
-                  <Text style={tp.ctaBtnTxt}>{isPrime ? 'Continue' : 'Explore'}</Text>
-                  <Ionicons name="arrow-forward" size={14} color="#7C4A0C" />
-                </View>
-              </View>
-            </Pressable>
-          );
-        })()}
-
         {/* 2. Quick Access grid – pastel tiles */}
         <SectionTitle title={t('quickAccess')} />
         <View style={s.quickGrid}>
@@ -463,7 +392,45 @@ export default function Home() {
           </>
         )}
 
-        {/* 5. Daily Challenge horizontal slider */}
+        {/* 5. Featured Courses – horizontal slider */}
+        {featCourses.length > 0 && (
+          <>
+            <SectionRow title="Featured Courses" onViewAll={() => router.push('/(tabs)/courses')} />
+            <FlatList
+              data={featCourses.slice(0, 8)}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(c: any) => c.id}
+              contentContainerStyle={s.hScroll}
+              renderItem={({ item: c }: any) => (
+                <Pressable
+                  testID={`home-course-${c.id}`}
+                  style={fc.card}
+                  onPress={() => router.push(`/course/${c.id}`)}
+                >
+                  <Image source={{ uri: c.thumbnail }} style={fc.thumb} contentFit="cover" transition={200} />
+                  <View style={{ padding: 10 }}>
+                    <Text style={fc.title} numberOfLines={2}>{c.title}</Text>
+                    <View style={fc.metaRow}>
+                      <Ionicons name="star" size={12} color={theme.colors.gold} />
+                      <Text style={fc.metaTxt}>{c.rating || '4.5'}</Text>
+                      <Text style={fc.dot}>•</Text>
+                      <Text style={fc.metaTxt}>{c.duration_hours || 20}h</Text>
+                      <Text style={fc.dot}>•</Text>
+                      <Text style={fc.metaTxt}>{(c.language || 'EN').slice(0, 3)}</Text>
+                    </View>
+                    <View style={fc.priceRow}>
+                      {c.price ? <Text style={fc.strike}>₹{Number(c.price).toLocaleString('en-IN')}</Text> : null}
+                      <Text style={fc.priceOffer}>₹{Number(c.offer_price ?? c.price ?? 0).toLocaleString('en-IN')}</Text>
+                    </View>
+                  </View>
+                </Pressable>
+              )}
+            />
+          </>
+        )}
+
+        {/* 6. Daily Challenge horizontal slider */}
         {challenges.length > 0 && (
           <>
             <SectionRow title={t('dailyChallenge')} onViewAll={() => router.push('/(tabs)/tests')} />
@@ -768,35 +735,17 @@ const lb = StyleSheet.create({
   stripFooterSub: { color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: '600' },
 });
 
-// Test Prime card styles (premium copper-gold)
-const tp = StyleSheet.create({
-  card: {
-    marginTop: 22, marginHorizontal: 16,
-    borderRadius: 24, overflow: 'hidden', padding: 16, minHeight: 210,
-    ...(Platform.OS === 'ios'
-      ? { shadowColor: '#8B5A2B', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.28, shadowRadius: 18 }
-      : { elevation: 10 }),
-  },
-  crownBg: { position: 'absolute', right: -30, top: -20, opacity: 0.35 },
-  topRow: { flexDirection: 'row', alignItems: 'center' },
-  crownChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
-  crownChipTxt: { color: '#7C4A0C', fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
-  lockChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
-  lockChipTxt: { color: '#FFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
-  activeChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#D1FAE5', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
-  activeChipTxt: { color: '#065F46', fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
-  title: { color: '#FFF', fontSize: 30, fontWeight: '900', letterSpacing: 1.5, marginTop: 12 },
-  tag: { color: 'rgba(255,255,255,0.95)', fontSize: 13, fontWeight: '600', marginTop: 4 },
-  featGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 14 },
-  featPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
-  featPillTxt: { color: '#7C4A0C', fontSize: 11, fontWeight: '800' },
-  ctaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
-  stats: {},
-  statVal: { color: '#FFF', fontSize: 17, fontWeight: '900' },
-  statLbl: { color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
-  statsDiv: { width: 1, height: 26, backgroundColor: 'rgba(255,255,255,0.35)' },
-  ctaBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999 },
-  ctaBtnTxt: { color: '#7C4A0C', fontSize: 13, fontWeight: '900', letterSpacing: 0.2 },
+// Featured Courses styles
+const fc = StyleSheet.create({
+  card: { width: 190, borderRadius: 16, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, marginRight: 12, overflow: 'hidden', ...(theme.shadow.soft as object) },
+  thumb: { width: '100%', height: 105, backgroundColor: theme.colors.surfaceTertiary },
+  title: { fontSize: 13, fontWeight: '800', color: theme.colors.onSurface, lineHeight: 17 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  metaTxt: { fontSize: 11, color: theme.colors.onSurfaceSecondary, fontWeight: '600' },
+  dot: { color: theme.colors.mutedLight },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 6 },
+  strike: { fontSize: 10.5, color: theme.colors.muted, fontWeight: '700', textDecorationLine: 'line-through' },
+  priceOffer: { fontSize: 14, fontWeight: '900', color: theme.colors.brand },
 });
 
 
