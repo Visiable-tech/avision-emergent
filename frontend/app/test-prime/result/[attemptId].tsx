@@ -284,6 +284,30 @@ export default function CbtResult() {
             <MaterialCommunityIcons name="chart-line" size={18} color="#FFF" />
             <Text style={s.ctaPrimaryTxt}>View Detailed Analytics</Text>
           </Pressable>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable
+              style={[s.ctaGhost, { flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' }]}
+              onPress={() => router.push('/test-prime/history' as any)}
+              testID="res-history"
+            >
+              <Ionicons name="time-outline" size={14} color="#0F172A" />
+              <Text style={s.ctaGhostTxt}>History</Text>
+            </Pressable>
+            <Pressable
+              style={[s.ctaGhost, { flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2563EB', borderColor: '#2563EB' }]}
+              onPress={async () => {
+                if (!user?.user_id) return;
+                try {
+                  const na = await api.tpStartAttempt(user.user_id, (r as any).test_id);
+                  router.replace(`/test-prime/attempt/${na.attempt_id}` as any);
+                } catch {}
+              }}
+              testID="res-retake"
+            >
+              <Ionicons name="refresh" size={14} color="#FFF" />
+              <Text style={[s.ctaGhostTxt, { color: '#FFF' }]}>Retake</Text>
+            </Pressable>
+          </View>
           <Pressable
             style={s.ctaGhost}
             onPress={() => router.replace('/(tabs)/tests' as any)}

@@ -110,8 +110,58 @@ export const api = {
     }),
   tpAnalytics: (attempt_id: string, user_id: string) =>
     req(`/test-prime/attempts/${attempt_id}/analytics?user_id=${encodeURIComponent(user_id)}`),
-  tpListAttempts: (user_id: string, limit = 20) =>
-    req(`/test-prime/attempts?user_id=${encodeURIComponent(user_id)}&limit=${limit}`),
+  tpListAttempts: (user_id: string, limit = 20, test_id?: string) =>
+    req(`/test-prime/attempts?user_id=${encodeURIComponent(user_id)}&limit=${limit}${test_id ? `&test_id=${encodeURIComponent(test_id)}` : ''}`),
+  tpAttemptSummary: (test_id: string, user_id: string) =>
+    req(`/test-prime/attempts/summary/${test_id}?user_id=${encodeURIComponent(user_id)}`),
+  tpLogViolation: (attempt_id: string, user_id: string, type: string, note?: string) =>
+    req(`/test-prime/attempts/${attempt_id}/violation?user_id=${encodeURIComponent(user_id)}`, {
+      method: 'POST',
+      body: JSON.stringify({ type, note }),
+    }),
+  // Test Prime — Admin
+  tpAdminStats: () => req('/test-prime/admin/stats'),
+  tpAdminQuestions: (subject?: string, topic?: string, q?: string) => {
+    const p = new URLSearchParams();
+    if (subject) p.set('subject', subject);
+    if (topic) p.set('topic', topic);
+    if (q) p.set('q', q);
+    const qs = p.toString();
+    return req(`/test-prime/admin/questions${qs ? `?${qs}` : ''}`);
+  },
+  tpAdminCreateQuestion: (body: {
+    subject: string;
+    topic: string;
+    text: string;
+    options: string[];
+    correct: number;
+    difficulty?: string;
+    explanation?: string;
+    tags?: string[];
+  }) =>
+    req(`/test-prime/admin/questions`, { method: 'POST', body: JSON.stringify(body) }),
+  tpAdminUpdateQuestion: (qid: string, body: any) =>
+    req(`/test-prime/admin/questions/${qid}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  tpAdminDeleteQuestion: (qid: string) =>
+    req(`/test-prime/admin/questions/${qid}`, { method: 'DELETE' }),
+  tpAdminTests: (exam?: string, q?: string) => {
+    const p = new URLSearchParams();
+    if (exam) p.set('exam', exam);
+    if (q) p.set('q', q);
+    const qs = p.toString();
+    return req(`/test-prime/admin/tests${qs ? `?${qs}` : ''}`);
+  },
+  tpAdminCreateTest: (body: {
+    name: string;
+    exam_id: string;
+    type?: string;
+    is_free?: boolean;
+    duration_min?: number;
+    questions?: number;
+    marks?: number;
+  }) => req(`/test-prime/admin/tests`, { method: 'POST', body: JSON.stringify(body) }),
+  tpAdminDeleteTest: (tid: string) =>
+    req(`/test-prime/admin/tests/${tid}`, { method: 'DELETE' }),
   dailyChallenges: (category?: string, userId?: string) => {
     const p = new URLSearchParams();
     if (category) p.set('category', category);

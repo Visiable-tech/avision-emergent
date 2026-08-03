@@ -163,6 +163,14 @@ export default function TestPrimeLanding() {
               </View>
             </View>
             <Pressable
+              onPress={() => router.push('/test-prime/history' as any)}
+              testID="tp-history"
+              hitSlop={12}
+              style={[s.iconBtn, { marginRight: 6 }]}
+            >
+              <Ionicons name="time-outline" size={22} color="#FFF" />
+            </Pressable>
+            <Pressable
               onPress={() => router.push('/(tabs)/profile')}
               testID="tp-profile"
               hitSlop={12}
@@ -449,6 +457,34 @@ export default function TestPrimeLanding() {
                 </Pressable>
               </View>
             </View>
+          </View>
+
+          {/* ============ ADMIN + HISTORY ROW ============ */}
+          <View style={[s.section, { flexDirection: 'row', gap: 10 }]}>
+            <Pressable
+              onPress={() => router.push('/test-prime/history' as any)}
+              style={s.quickLink}
+              testID="tp-quick-history"
+            >
+              <View style={[s.quickLinkIcon, { backgroundColor: '#DBEAFE' }]}>
+                <Ionicons name="time-outline" size={18} color="#2563EB" />
+              </View>
+              <Text style={s.quickLinkTitle}>Test History</Text>
+              <Text style={s.quickLinkSub}>Your past attempts & retakes</Text>
+            </Pressable>
+            {(user?.email === 'admin@avision.com' || user?.email === 'test@avision.com' || (user as any)?.is_admin) && (
+              <Pressable
+                onPress={() => router.push('/test-prime/admin' as any)}
+                style={s.quickLink}
+                testID="tp-quick-admin"
+              >
+                <View style={[s.quickLinkIcon, { backgroundColor: '#F5F3FF' }]}>
+                  <MaterialCommunityIcons name="shield-crown" size={18} color="#7C3AED" />
+                </View>
+                <Text style={s.quickLinkTitle}>Admin Console</Text>
+                <Text style={s.quickLinkSub}>Manage questions & tests</Text>
+              </Pressable>
+            )}
           </View>
         </ScrollView>
       )}
@@ -837,6 +873,18 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
   supportBtnTxt: { color: '#2563EB', fontSize: 11, fontWeight: '900', letterSpacing: 0.4 },
+
+  quickLink: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+  },
+  quickLinkIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  quickLinkTitle: { fontSize: 13, fontWeight: '900', color: '#0F172A' },
+  quickLinkSub: { fontSize: 10.5, fontWeight: '600', color: '#64748B', marginTop: 2 },
 
   // Sticky bar
   stickyBar: {

@@ -10,6 +10,7 @@ import {
   Modal,
   Alert,
   BackHandler,
+  AppState,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -99,8 +100,13 @@ export default function CbtAttempt() {
   const [showPalette, setShowPalette] = useState(false);
   const [showSubmit, setShowSubmit] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Anti-cheat state
+  const [violations, setViolations] = useState(0);
+  const [violationWarn, setViolationWarn] = useState<string | null>(null);
 
   const lastSaveRef = useRef(Date.now());
+  const lastAppStateRef = useRef<string>(AppState.currentState);
+  const cheatEnabledRef = useRef(false);
 
   // ==================== LOAD ATTEMPT ====================
   useEffect(() => {
@@ -208,6 +214,61 @@ export default function CbtAttempt() {
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt, loading, answers, marked, seen, totalLeft, sectionLeft, current]);
+
+  // ==================== ANTI-CHEAT ====================
+  useEffect(() => {
+    if (!attempt || loading || !user?.user_id) return;
+    cheatEnabledRef.current = true;
+
+    const logViolation = async (type: string, note: string) => {
+      if (!cheatEnabledRef.current) return;
+      try {
+        const r = await api.tpLogViolation(attempt.attempt_id, user.user_id, type, note);
+        const count = r.violation_count as number;
+        setViolations(count);
+        if (count === 1) {
+          setViolationWarn('Warning: switching tabs or apps during a test is not allowed. This has been logged. One more violation will trigger a final warning.');
+        } else if (count === 2) {
+          setViolationWarn('Second violation logged. Any further tab-switch or background activity will auto-submit your test.');
+        } else if (count >= 3) {
+          setViolationWarn(null);
+          Alert.alert('Auto-submitted', 'Your test was auto-submitted due to repeated anti-cheat violations.');
+          await handleSubmit(true);
+        }
+      } catch {}
+    };
+
+    // Native: AppState transitions
+    const sub = AppState.addEventListener('change', (state) => {
+      const prev = lastAppStateRef.current;
+      lastAppStateRef.current = state;
+      if (prev === 'active' && (state === 'background' || state === 'inactive')) {
+        logViolation('background', 'App moved to background');
+      }
+    });
+
+    // Web: visibility/blur
+    let onVisibility: (() => void) | null = null;
+    let onBlur: (() => void) | null = null;
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      onVisibility = () => {
+        if (document.hidden) logViolation('tab_hidden', 'Tab hidden / minimised');
+      };
+      onBlur = () => logViolation('window_blur', 'Window blurred');
+      document.addEventListener('visibilitychange', onVisibility);
+      window.addEventListener('blur', onBlur);
+    }
+
+    return () => {
+      cheatEnabledRef.current = false;
+      sub.remove();
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        if (onVisibility) document.removeEventListener('visibilitychange', onVisibility);
+        if (onBlur) window.removeEventListener('blur', onBlur);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attempt, loading, user?.user_id]);
 
   const saveState = useCallback(async () => {
     if (!attempt || !user?.user_id) return;
@@ -371,6 +432,12 @@ export default function CbtAttempt() {
               <Text style={s.timerTxt}>{fmt(totalLeft)}</Text>
             </View>
           </View>
+          {violations > 0 && (
+            <View style={s.violBar}>
+              <MaterialCommunityIcons name="shield-alert" size={13} color="#FCA5A5" />
+              <Text style={s.violTxt}>Anti-cheat: {violations}/3 violations logged</Text>
+            </View>
+          )}
         </SafeAreaView>
       </LinearGradient>
 
@@ -576,6 +643,28 @@ export default function CbtAttempt() {
         </Pressable>
       </Modal>
 
+      {/* ============ VIOLATION WARNING MODAL ============ */}
+      <Modal visible={!!violationWarn} animationType="fade" transparent onRequestClose={() => setViolationWarn(null)}>
+        <View style={s.confirmBackdrop}>
+          <View style={s.confirmCard}>
+            <View style={[s.confirmIcon, { backgroundColor: '#FEE2E2' }]}>
+              <MaterialCommunityIcons name="shield-alert" size={36} color="#DC2626" />
+            </View>
+            <Text style={[s.confirmTitle, { color: '#991B1B' }]}>Anti-cheat Warning</Text>
+            <Text style={s.confirmSub}>{violationWarn}</Text>
+            <View style={s.confirmBtnRow}>
+              <Pressable
+                style={[s.cBtn, s.cBtnPrimary, { backgroundColor: '#DC2626' }]}
+                onPress={() => setViolationWarn(null)}
+                testID="cbt-viol-ack"
+              >
+                <Text style={s.cBtnPrimaryTxt}>I understand</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* ============ SUBMIT CONFIRM MODAL ============ */}
       <Modal visible={showSubmit} animationType="fade" transparent onRequestClose={() => setShowSubmit(false)}>
         <View style={s.confirmBackdrop}>
@@ -674,6 +763,18 @@ const s = StyleSheet.create({
     borderRadius: 999,
   },
   timerTxt: { color: '#FFF', fontSize: 12.5, fontWeight: '900', letterSpacing: 0.5 },
+  violBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(220,38,38,0.28)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  violTxt: { color: '#FEE2E2', fontSize: 10.5, fontWeight: '800', letterSpacing: 0.3 },
 
   // Section tabs
   secBar: {

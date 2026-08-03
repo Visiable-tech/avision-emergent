@@ -564,8 +564,20 @@ async def reset_entitlement(user_id: str):
 
 # ==================== CBT ENGINE — Attempts + Analytics + Ranking ====================
 import hashlib
+import json
+import os
 import random
 import statistics
+
+# ------- Load curated question bank -------
+_BANK_PATH = os.path.join(os.path.dirname(__file__), "data", "question_bank.json")
+try:
+    with open(_BANK_PATH, "r", encoding="utf-8") as _f:
+        _QUESTION_BANK: dict = json.load(_f)
+except Exception:
+    _QUESTION_BANK = {}
+
+# Admin question overlay collection is loaded from Mongo at query time.
 
 # Topic templates per broad subject — used to tag questions for analytics
 _TOPIC_MAP = {
@@ -591,8 +603,21 @@ def _subject_key(section_name: str) -> str:
     return "general"
 
 
-def _gen_question_bank(test: dict, seed: int) -> List[dict]:
-    """Generate a full question paper for one attempt (with correct answers on server)."""
+async def _bank_for(subject: str, topic: str) -> List[dict]:
+    """Return curated + admin custom questions for a subject/topic."""
+    base = ((_QUESTION_BANK.get(subject) or {}).get(topic)) or []
+    # merge in admin-added custom questions
+    admin = []
+    try:
+        cur = _db.tp_questions.find({"subject": subject, "topic": topic}, {"_id": 0})
+        admin = await cur.to_list(length=500)
+    except Exception:
+        admin = []
+    return list(base) + list(admin)
+
+
+async def _gen_question_bank(test: dict, seed: int) -> List[dict]:
+    """Generate a full question paper for one attempt — draws from the curated bank first, then fills gaps with templated stems."""
     rnd = random.Random(seed)
     pattern = PATTERNS.get(test["pattern_id"], {})
     sections = pattern.get("sections") or [{"name": "General", "questions": test.get("questions", 20), "marks": test.get("marks", 40), "duration_min": test.get("duration_min", 30)}]
@@ -604,25 +629,45 @@ def _gen_question_bank(test: dict, seed: int) -> List[dict]:
         topics = _TOPIC_MAP.get(subj, _TOPIC_MAP["general"])
         qcount = int(sec.get("questions") or 0)
         per_q_marks = round((sec.get("marks", 0) / max(1, qcount)), 2) if qcount else 1
+        # Round-robin over topics
         for i in range(qcount):
             qidx += 1
             topic = topics[i % len(topics)]
-            correct_idx = rnd.randint(0, 3)
-            # Build believable stems + options; kept short for demo/CBT rendering
-            stem = _q_stem(subj, topic, i + 1, rnd)
-            options = _q_options(subj, topic, correct_idx, rnd)
-            questions.append({
-                "id": f"q{qidx}",
-                "section": sec["name"],
-                "subject": subj,
-                "topic": topic,
-                "text": stem,
-                "options": options,
-                "correct": correct_idx,
-                "marks": per_q_marks,
-                "difficulty": ["Easy", "Medium", "Hard"][rnd.randint(0, 2)],
-                "explanation": f"The correct answer is Option {chr(65 + correct_idx)}. This tests your understanding of {topic}.",
-            })
+            bank_pool = await _bank_for(subj, topic)
+            src = None
+            if bank_pool:
+                src = rnd.choice(bank_pool)
+            if src:
+                q = {
+                    "id": f"q{qidx}",
+                    "section": sec["name"],
+                    "subject": subj,
+                    "topic": topic,
+                    "text": src["text"],
+                    "options": list(src["options"]),
+                    "correct": int(src["correct"]),
+                    "marks": per_q_marks,
+                    "difficulty": src.get("difficulty", ["Easy", "Medium", "Hard"][rnd.randint(0, 2)]),
+                    "explanation": src.get("explanation", f"See topic notes for {topic}."),
+                    "source": "curated" if src.get("_from") != "admin" else "admin",
+                }
+            else:
+                # Fallback to templated demo question
+                correct_idx = rnd.randint(0, 3)
+                q = {
+                    "id": f"q{qidx}",
+                    "section": sec["name"],
+                    "subject": subj,
+                    "topic": topic,
+                    "text": _q_stem(subj, topic, i + 1, rnd),
+                    "options": _q_options(subj, topic, correct_idx, rnd),
+                    "correct": correct_idx,
+                    "marks": per_q_marks,
+                    "difficulty": ["Easy", "Medium", "Hard"][rnd.randint(0, 2)],
+                    "explanation": f"The correct answer is Option {chr(65 + correct_idx)}. This tests your understanding of {topic}.",
+                    "source": "templated",
+                }
+            questions.append(q)
     return questions
 
 
@@ -746,9 +791,12 @@ async def start_attempt(user_id: str, body: dict):
 
     attempt_id = uuid.uuid4().hex
     seed = int(hashlib.md5(f"{user_id}:{test_id}:{attempt_id}".encode()).hexdigest()[:8], 16)
-    questions = _gen_question_bank(test, seed)
+    questions = await _gen_question_bank(test, seed)
     pattern = PATTERNS.get(test["pattern_id"], {})
     sections_meta = pattern.get("sections") or [{"name": "General", "questions": test["questions"], "marks": test["marks"], "duration_min": test["duration_min"]}]
+
+    # Compute retake number
+    prior_count = await _db.tp_attempts.count_documents({"user_id": user_id, "test_id": test_id})
 
     now = datetime.now(timezone.utc)
     doc = {
@@ -784,6 +832,11 @@ async def start_attempt(user_id: str, body: dict):
         "marked": [],            # [qid]
         "seen": [],              # [qid]
         "current_index": 0,
+        # Anti-cheat tracking
+        "violations": [],           # [{type, at, note}]
+        "violation_count": 0,
+        # Retake metadata
+        "attempt_number": prior_count + 1,
         # analytics fields populated on submit:
         "score": None, "percentage": None, "rank": None, "percentile": None,
         "correct_count": None, "wrong_count": None, "unattempted_count": None,
@@ -990,13 +1043,225 @@ async def get_analytics(attempt_id: str, user_id: str):
 
 
 @router.get("/attempts")
-async def list_attempts(user_id: str, limit: int = 20):
-    cur = _db.tp_attempts.find({"user_id": user_id}, {"_id": 0, "questions": 0, "review": 0}).sort("started_at", -1).limit(limit)
+async def list_attempts(user_id: str, limit: int = 20, test_id: Optional[str] = None):
+    q = {"user_id": user_id}
+    if test_id:
+        q["test_id"] = test_id
+    cur = _db.tp_attempts.find(q, {"_id": 0, "questions": 0, "review": 0}).sort("started_at", -1).limit(limit)
     docs = await cur.to_list(length=limit)
     return {"attempts": docs}
+
+
+@router.get("/attempts/summary/{test_id}")
+async def attempt_summary(test_id: str, user_id: str):
+    """Best / latest / attempts count for a specific test — used for Retake UI."""
+    cur = _db.tp_attempts.find({"user_id": user_id, "test_id": test_id, "status": "submitted"}, {"_id": 0, "questions": 0, "review": 0}).sort("submitted_at", -1)
+    docs = await cur.to_list(length=100)
+    if not docs:
+        return {"count": 0, "best": None, "latest": None, "average_score": None}
+    best = max(docs, key=lambda d: d.get("score") or -1e9)
+    latest = docs[0]
+    avg = round(sum((d.get("score") or 0) for d in docs) / len(docs), 2)
+    return {"count": len(docs), "best": best, "latest": latest, "average_score": avg}
+
+
+@router.post("/attempts/{attempt_id}/violation")
+async def log_violation(attempt_id: str, user_id: str, body: dict):
+    """Anti-cheat: log a violation (tab-switch, blur, fullscreen-exit)."""
+    doc = await _db.tp_attempts.find_one({"attempt_id": attempt_id, "user_id": user_id})
+    if not doc:
+        raise HTTPException(404, "Attempt not found")
+    if doc.get("status") == "submitted":
+        return {"violation_count": doc.get("violation_count", 0)}
+    v = {
+        "type": (body.get("type") or "unknown")[:32],
+        "note": (body.get("note") or "")[:200],
+        "at": datetime.now(timezone.utc).isoformat(),
+    }
+    await _db.tp_attempts.update_one(
+        {"attempt_id": attempt_id},
+        {"$push": {"violations": v}, "$inc": {"violation_count": 1}},
+    )
+    updated = await _db.tp_attempts.find_one({"attempt_id": attempt_id}, {"_id": 0, "questions": 0, "review": 0})
+    return {"violation_count": updated.get("violation_count", 0), "violations": updated.get("violations", [])}
+
+
+# ==================== ADMIN: Questions & Tests CRUD ====================
+def _is_admin(user: dict) -> bool:
+    if not user:
+        return False
+    return bool(user.get("is_admin")) or user.get("email") in ("admin@avision.com", "test@avision.com")
+
+
+class AdminQuestionBody(BaseModel):
+    subject: str
+    topic: str
+    text: str
+    options: List[str]
+    correct: int
+    difficulty: Optional[str] = "Medium"
+    explanation: Optional[str] = ""
+    tags: Optional[List[str]] = []
+
+
+@router.get("/admin/questions")
+async def admin_list_questions(subject: Optional[str] = None, topic: Optional[str] = None, q: Optional[str] = None, limit: int = 200):
+    """List curated + admin questions."""
+    items: List[dict] = []
+    # Curated
+    for subj, topics in _QUESTION_BANK.items():
+        if subject and subj != subject:
+            continue
+        for t, qs in (topics or {}).items():
+            if topic and t != topic:
+                continue
+            for i, x in enumerate(qs):
+                if q and q.lower() not in x["text"].lower():
+                    continue
+                items.append({
+                    "id": f"curated:{subj}:{t}:{i}",
+                    "source": "curated",
+                    "subject": subj, "topic": t,
+                    "text": x["text"], "options": x["options"], "correct": x["correct"],
+                    "difficulty": x.get("difficulty", "Medium"), "explanation": x.get("explanation", ""),
+                    "read_only": True,
+                })
+    # Admin
+    q_filter = {}
+    if subject: q_filter["subject"] = subject
+    if topic: q_filter["topic"] = topic
+    if q: q_filter["text"] = {"$regex": q, "$options": "i"}
+    cur = _db.tp_questions.find(q_filter, {"_id": 0}).limit(limit)
+    async for doc in cur:
+        items.append({**doc, "source": "admin", "read_only": False})
+    return {"items": items[:limit], "count": len(items[:limit])}
+
+
+@router.post("/admin/questions")
+async def admin_create_question(body: AdminQuestionBody):
+    q = {
+        "id": f"aq_{uuid.uuid4().hex[:10]}",
+        "subject": body.subject,
+        "topic": body.topic,
+        "text": body.text,
+        "options": body.options,
+        "correct": int(body.correct),
+        "difficulty": body.difficulty or "Medium",
+        "explanation": body.explanation or "",
+        "tags": body.tags or [],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await _db.tp_questions.insert_one(q)
+    return q
+
+
+@router.patch("/admin/questions/{qid}")
+async def admin_update_question(qid: str, body: dict):
+    upd = {k: v for k, v in body.items() if k in ("subject", "topic", "text", "options", "correct", "difficulty", "explanation", "tags")}
+    if "correct" in upd:
+        upd["correct"] = int(upd["correct"])
+    await _db.tp_questions.update_one({"id": qid}, {"$set": upd})
+    q = await _db.tp_questions.find_one({"id": qid}, {"_id": 0})
+    if not q:
+        raise HTTPException(404, "Not found")
+    return q
+
+
+@router.delete("/admin/questions/{qid}")
+async def admin_delete_question(qid: str):
+    r = await _db.tp_questions.delete_one({"id": qid})
+    return {"deleted": r.deleted_count}
+
+
+class AdminTestBody(BaseModel):
+    name: str
+    exam_id: str
+    type: str = "full-mock"
+    is_free: bool = False
+    duration_min: int = 60
+    questions: int = 100
+    marks: int = 100
+
+
+@router.get("/admin/tests")
+async def admin_list_tests(exam: Optional[str] = None, q: Optional[str] = None, limit: int = 200):
+    """List curated (in-memory) + admin custom tests."""
+    items = []
+    for t in TESTS:
+        if exam and t["exam_id"] != exam:
+            continue
+        if q and q.lower() not in t["name"].lower():
+            continue
+        items.append({**t, "source": "curated", "read_only": True})
+    f = {}
+    if exam: f["exam_id"] = exam
+    if q: f["name"] = {"$regex": q, "$options": "i"}
+    cur = _db.tp_admin_tests.find(f, {"_id": 0}).limit(limit)
+    async for d in cur:
+        items.append({**d, "source": "admin", "read_only": False})
+    return {"items": items[:limit], "count": len(items[:limit])}
+
+
+@router.post("/admin/tests")
+async def admin_create_test(body: AdminTestBody):
+    exam = next((e for e in EXAMS if e["id"] == body.exam_id), None)
+    if not exam:
+        raise HTTPException(400, "Exam not found")
+    t = {
+        "id": f"at_{uuid.uuid4().hex[:10]}",
+        "name": body.name,
+        "exam_id": exam["id"], "exam_name": exam["name"],
+        "category_id": exam["category_id"], "pattern_id": exam["pattern_id"],
+        "type": body.type, "type_label": next((tt["label"] for tt in TEST_TYPES if tt["id"] == body.type), body.type),
+        "stage": PATTERNS.get(exam["pattern_id"], {}).get("stage", "N/A"),
+        "questions": int(body.questions), "marks": int(body.marks),
+        "duration_min": int(body.duration_min),
+        "language": PATTERNS.get(exam["pattern_id"], {}).get("language", "English + Hindi"),
+        "difficulty": "Medium", "is_free": bool(body.is_free), "is_live": False,
+        "attempts_count": 0, "published_at": datetime.now(timezone.utc).isoformat()[:10], "popularity": 0,
+    }
+    await _db.tp_admin_tests.insert_one(t)
+    TESTS.append(t)  # register into runtime list so it becomes attemptable
+    return t
+
+
+@router.delete("/admin/tests/{tid}")
+async def admin_delete_test(tid: str):
+    r = await _db.tp_admin_tests.delete_one({"id": tid})
+    # Also remove from runtime list
+    global TESTS
+    TESTS[:] = [t for t in TESTS if t["id"] != tid]
+    return {"deleted": r.deleted_count}
+
+
+@router.get("/admin/stats")
+async def admin_stats():
+    q_count = sum(len(qs) for topics in _QUESTION_BANK.values() for qs in (topics or {}).values())
+    admin_q = await _db.tp_questions.count_documents({})
+    admin_t = await _db.tp_admin_tests.count_documents({})
+    attempts = await _db.tp_attempts.count_documents({})
+    submitted = await _db.tp_attempts.count_documents({"status": "submitted"})
+    return {
+        "curated_questions": q_count,
+        "admin_questions": admin_q,
+        "curated_tests": len(TESTS) - admin_t,
+        "admin_tests": admin_t,
+        "total_attempts": attempts,
+        "submitted_attempts": submitted,
+    }
+
+
+async def _register_admin_tests(db):
+    async for d in db.tp_admin_tests.find({}, {"_id": 0}):
+        if not any(x["id"] == d["id"] for x in TESTS):
+            TESTS.append(d)
 
 
 async def ensure_test_prime_indexes(db):
     await db.tp_entitlements.create_index("user_id", unique=True)
     await db.tp_attempts.create_index("attempt_id", unique=True)
     await db.tp_attempts.create_index([("user_id", 1), ("started_at", -1)])
+    await db.tp_questions.create_index("id", unique=True)
+    await db.tp_questions.create_index([("subject", 1), ("topic", 1)])
+    await db.tp_admin_tests.create_index("id", unique=True)
+    await _register_admin_tests(db)

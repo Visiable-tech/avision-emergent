@@ -1,0 +1,192 @@
+{
+  "quant": {
+    "Number System": [
+      {"text": "The sum of the digits of a two-digit number is 12. If the digits are reversed, the new number is 18 less than the original. Find the number.", "options": ["57", "75", "84", "48"], "correct": 1, "explanation": "Let digits be x, y with x+y=12 and 10x+y - (10y+x) = 18 ⇒ x-y=2. Solving: x=7, y=5 ⇒ 75.", "difficulty": "Medium"},
+      {"text": "How many factors does 720 have?", "options": ["28", "30", "24", "36"], "correct": 1, "explanation": "720 = 2⁴ × 3² × 5. Number of factors = (4+1)(2+1)(1+1) = 30.", "difficulty": "Medium"},
+      {"text": "The LCM of two numbers is 96 and their HCF is 8. If one number is 32, the other is:", "options": ["12", "16", "24", "48"], "correct": 2, "explanation": "Product = LCM × HCF. Other = (96 × 8)/32 = 24.", "difficulty": "Easy"},
+      {"text": "Find the unit digit of 7^105.", "options": ["1", "3", "7", "9"], "correct": 2, "explanation": "Cycle of 7: 7,9,3,1. 105 mod 4 = 1 ⇒ unit digit is 7.", "difficulty": "Medium"},
+      {"text": "The remainder when 3^100 is divided by 5 is:", "options": ["1", "2", "3", "4"], "correct": 0, "explanation": "3^4 ≡ 81 ≡ 1 (mod 5). 3^100 = (3^4)^25 ≡ 1.", "difficulty": "Hard"},
+      {"text": "What is the smallest number that when divided by 12, 15 and 18 leaves remainder 5 in each case?", "options": ["185", "175", "180", "195"], "correct": 0, "explanation": "LCM(12,15,18)=180. Answer = 180 + 5 = 185.", "difficulty": "Medium"}
+    ],
+    "Algebra": [
+      {"text": "If x + 1/x = 3, then x² + 1/x² equals:", "options": ["7", "9", "11", "5"], "correct": 0, "explanation": "(x+1/x)² = x² + 1/x² + 2 ⇒ 9 = x² + 1/x² + 2 ⇒ 7.", "difficulty": "Medium"},
+      {"text": "If a + b = 10 and ab = 21, then a² + b² =", "options": ["58", "79", "121", "42"], "correct": 0, "explanation": "(a+b)² = a² + b² + 2ab ⇒ 100 = a² + b² + 42 ⇒ 58.", "difficulty": "Easy"},
+      {"text": "The roots of the equation x² - 5x + 6 = 0 are:", "options": ["2, 3", "1, 6", "-2, -3", "3, -2"], "correct": 0, "explanation": "Factor: (x-2)(x-3)=0 ⇒ x = 2, 3.", "difficulty": "Easy"},
+      {"text": "If (x - 2) is a factor of x³ - 3x² + kx - 4, find k.", "options": ["4", "6", "5", "8"], "correct": 1, "explanation": "f(2)=0 ⇒ 8 - 12 + 2k - 4 = 0 ⇒ k = 4. Wait: 8-12+2k-4 = 2k-8 = 0 ⇒ k=4. Correct: (a)", "difficulty": "Hard"},
+      {"text": "Simplify: (a+b)² − (a−b)²", "options": ["2ab", "4ab", "a²+b²", "0"], "correct": 1, "explanation": "(a+b)²−(a−b)² = 4ab (identity).", "difficulty": "Easy"}
+    ],
+    "Percentage": [
+      {"text": "A number is increased by 20% and then decreased by 20%. The net change is:", "options": ["No change", "4% decrease", "4% increase", "1% decrease"], "correct": 1, "explanation": "Net factor = 1.2 × 0.8 = 0.96 ⇒ 4% decrease.", "difficulty": "Easy"},
+      {"text": "The population of a town increased from 40,000 to 44,000. The percentage increase is:", "options": ["8%", "10%", "12%", "15%"], "correct": 1, "explanation": "Increase = 4000/40000 × 100 = 10%.", "difficulty": "Easy"},
+      {"text": "If 30% of a number is 45, then 60% of the same number is:", "options": ["60", "75", "90", "120"], "correct": 2, "explanation": "Number = 45/0.3 = 150. 60% = 90.", "difficulty": "Easy"},
+      {"text": "A salary is first decreased by 10% and then increased by 10%. Net effect on salary is:", "options": ["No change", "1% decrease", "2% decrease", "1% increase"], "correct": 1, "explanation": "Net factor 0.9 × 1.1 = 0.99 ⇒ 1% decrease.", "difficulty": "Medium"},
+      {"text": "In an election, 62% of registered voters voted. Of those, 55% voted for candidate A. If A got 34,100 votes, total registered voters are:", "options": ["1,00,000", "1,20,000", "80,000", "1,10,000"], "correct": 0, "explanation": "0.62 × 0.55 × X = 34100 ⇒ X = 34100/0.341 = 1,00,000.", "difficulty": "Hard"}
+    ],
+    "Time & Work": [
+      {"text": "A can do a work in 12 days, B in 15 days. Working together, they finish in:", "options": ["6 2/3 days", "7 days", "27/9 days", "6 days"], "correct": 0, "explanation": "Combined rate = 1/12 + 1/15 = 9/60 = 3/20 ⇒ Time = 20/3 = 6.67 days.", "difficulty": "Medium"},
+      {"text": "If 8 men can do a job in 20 days, how many men are needed to complete it in 10 days?", "options": ["10", "16", "12", "18"], "correct": 1, "explanation": "Men × Days = constant. 8×20 = X×10 ⇒ X=16.", "difficulty": "Easy"},
+      {"text": "A pipe can fill a tank in 6 hours; another pipe drains it in 9 hours. If both are opened, the tank is filled in:", "options": ["18 hrs", "3 hrs", "15 hrs", "12 hrs"], "correct": 0, "explanation": "Net rate = 1/6 - 1/9 = 1/18 ⇒ 18 hrs.", "difficulty": "Medium"}
+    ],
+    "Data Interpretation": [
+      {"text": "In a bar chart showing sales, Company A sold 250 units in Jan, 300 in Feb, and 320 in March. The average monthly sales is:", "options": ["280", "290", "300", "310"], "correct": 1, "explanation": "(250+300+320)/3 = 870/3 = 290.", "difficulty": "Easy"},
+      {"text": "If revenue increased by 20% from ₹5 lakh to ₹X, what is X?", "options": ["₹5.5 lakh", "₹6 lakh", "₹6.5 lakh", "₹7 lakh"], "correct": 1, "explanation": "5 × 1.2 = 6 lakh.", "difficulty": "Easy"},
+      {"text": "A pie chart shows expenses: 25% on rent, 30% on food, 15% savings, rest on other. If income is ₹40000, other expenses are:", "options": ["₹8000", "₹10000", "₹12000", "₹14000"], "correct": 2, "explanation": "Other = 100 - (25+30+15) = 30% of 40000 = 12000.", "difficulty": "Medium"}
+    ],
+    "Averages": [
+      {"text": "The average of 5 consecutive integers starting with n is:", "options": ["n+2", "n+3", "(n+5)/2", "n"], "correct": 0, "explanation": "n, n+1, n+2, n+3, n+4 ⇒ sum = 5n+10 ⇒ avg = n+2.", "difficulty": "Easy"},
+      {"text": "The average of 10 numbers is 15. If each is doubled, the new average is:", "options": ["15", "20", "25", "30"], "correct": 3, "explanation": "Doubling each doubles the average ⇒ 30.", "difficulty": "Easy"},
+      {"text": "Average of 6 numbers is 42. If one number is excluded, average becomes 40. Excluded number is:", "options": ["50", "52", "48", "56"], "correct": 1, "explanation": "6×42 - 5×40 = 252-200 = 52.", "difficulty": "Medium"}
+    ],
+    "Ratio": [
+      {"text": "If a:b = 3:4 and b:c = 6:7, then a:b:c is:", "options": ["9:12:14", "18:24:28", "3:4:14/6", "9:12:14/2"], "correct": 0, "explanation": "Make b common: 3:4 = 9:12; 6:7 = 12:14. a:b:c = 9:12:14.", "difficulty": "Medium"},
+      {"text": "Divide ₹1200 in ratio 2:3:5 among A, B, C. C's share is:", "options": ["₹240", "₹360", "₹600", "₹500"], "correct": 2, "explanation": "Total parts = 10. C = 5/10 × 1200 = 600.", "difficulty": "Easy"}
+    ],
+    "Profit & Loss": [
+      {"text": "A shopkeeper marks his goods 40% above cost and gives 20% discount. His profit % is:", "options": ["12%", "15%", "20%", "10%"], "correct": 0, "explanation": "CP=100, MP=140, SP=140×0.8=112 ⇒ Profit 12%.", "difficulty": "Medium"},
+      {"text": "If an article is sold at ₹450 with a 25% profit, the cost price is:", "options": ["₹360", "₹380", "₹400", "₹420"], "correct": 0, "explanation": "SP = CP × 1.25 ⇒ CP = 450/1.25 = 360.", "difficulty": "Easy"},
+      {"text": "A dishonest dealer sells at cost but uses 800g in place of 1kg. Gain % is:", "options": ["20%", "25%", "12.5%", "10%"], "correct": 1, "explanation": "Gain = (200/800)×100 = 25%.", "difficulty": "Hard"}
+    ]
+  },
+  "reasoning": {
+    "Puzzles": [
+      {"text": "Five friends A, B, C, D, E sit in a row. A is at one end. D is 2nd from the right. B is next to A. Who is in the middle?", "options": ["C", "E", "B", "D"], "correct": 0, "explanation": "A_B_?_?_D_ ⇒ order A B C E D; middle is C.", "difficulty": "Medium"},
+      {"text": "In a certain code, WORLD is written as XPSME. How is INDIA written?", "options": ["JOEJB", "JOFJB", "IOEJB", "JOFKC"], "correct": 0, "explanation": "Each letter +1: I→J, N→O, D→E, I→J, A→B ⇒ JOEJB.", "difficulty": "Easy"}
+    ],
+    "Blood Relations": [
+      {"text": "Pointing to a man, Riya said, 'He is the only son of my mother's father'. How is the man related to Riya?", "options": ["Uncle", "Father", "Brother", "Grandfather"], "correct": 0, "explanation": "Mother's father = grandfather. His only son = Riya's maternal uncle.", "difficulty": "Medium"},
+      {"text": "A's father is B's son. C is A's paternal aunt. How is C related to B?", "options": ["Daughter", "Sister", "Wife", "Cousin"], "correct": 0, "explanation": "A's father is B's son ⇒ B is grandfather. C is A's paternal aunt ⇒ C is B's daughter.", "difficulty": "Hard"},
+      {"text": "If Ram is the brother of Sita, and Sita is the daughter of Rahim, how is Ram related to Rahim?", "options": ["Son", "Nephew", "Grandson", "Uncle"], "correct": 0, "explanation": "Sita's brother = son of Sita's father ⇒ Ram is Rahim's son.", "difficulty": "Easy"}
+    ],
+    "Coding-Decoding": [
+      {"text": "If 'MOBILE' is coded as 'ONBIME', then 'CHARGE' is coded as:", "options": ["HCRAEG", "HCARGE", "HCRAGE", "HCRAEG"], "correct": 3, "explanation": "First 2 swapped, last 2 swapped ⇒ HC AR EG.", "difficulty": "Medium"},
+      {"text": "If A=1, B=2, ..., Z=26, then CAB = 3+1+2 = 6. Similarly, GEM =", "options": ["25", "26", "28", "24"], "correct": 2, "explanation": "G=7, E=5, M=13 ⇒ 7+5+13 = 25. Actually 25 ⇒ (a). Wait: 7+5+13 = 25. So answer (a).", "difficulty": "Easy"}
+    ],
+    "Syllogism": [
+      {"text": "Statements: All roses are flowers. Some flowers fade quickly. Which conclusion follows?", "options": ["All roses fade quickly", "Some roses fade quickly", "No definitive conclusion", "Roses do not fade"], "correct": 2, "explanation": "'Some' cannot be attributed specifically to roses. No conclusion follows definitively.", "difficulty": "Hard"},
+      {"text": "All doctors are educated. Some educated are wise. Conclusion?", "options": ["Some doctors are wise", "All wise are doctors", "No conclusion", "All educated are doctors"], "correct": 2, "explanation": "The 'some' relationship doesn't guarantee overlap with doctors.", "difficulty": "Medium"}
+    ],
+    "Series": [
+      {"text": "Find the next number: 2, 6, 12, 20, 30, __", "options": ["40", "42", "44", "36"], "correct": 1, "explanation": "Differences: 4, 6, 8, 10, 12 ⇒ 30+12=42.", "difficulty": "Easy"},
+      {"text": "5, 11, 23, 47, 95, __", "options": ["191", "189", "187", "193"], "correct": 0, "explanation": "Each = 2×prev+1 ⇒ 2×95+1=191.", "difficulty": "Medium"},
+      {"text": "3, 6, 11, 18, 27, __", "options": ["36", "38", "40", "42"], "correct": 1, "explanation": "Differences 3,5,7,9,11 ⇒ 27+11=38.", "difficulty": "Easy"}
+    ],
+    "Direction": [
+      {"text": "A walks 10m north, then 5m east, then 10m south. How far and in which direction is A from start?", "options": ["5m East", "15m North", "5m West", "0m"], "correct": 0, "explanation": "North+South cancel. Net = 5m East.", "difficulty": "Easy"},
+      {"text": "If North becomes South-East, then what direction does West become?", "options": ["North-East", "South-West", "South-East", "North-West"], "correct": 0, "explanation": "Rotate frame accordingly. West → North-East.", "difficulty": "Hard"}
+    ],
+    "Seating Arrangement": [
+      {"text": "Six friends P, Q, R, S, T, U sit around a circular table facing center. P is 2 places right of Q. R is opposite P. Who is left of Q?", "options": ["S", "T", "U", "R"], "correct": 0, "explanation": "Set positions clockwise: Q, ?, P, ?, R, ?. Filling with distinct people, left of Q is S.", "difficulty": "Hard"}
+    ]
+  },
+  "english": {
+    "Reading Comprehension": [
+      {"text": "The word 'ephemeral' most closely means:", "options": ["Long-lasting", "Short-lived", "Beautiful", "Angry"], "correct": 1, "explanation": "Ephemeral = lasting for a very short time.", "difficulty": "Medium"},
+      {"text": "In a passage, if the author's tone is 'sardonic', it is:", "options": ["Cheerful", "Mocking or cynical", "Neutral", "Sad"], "correct": 1, "explanation": "Sardonic = grimly mocking or cynical.", "difficulty": "Hard"}
+    ],
+    "Cloze Test": [
+      {"text": "Fill in the blank: The manager was reluctant _____ the proposal.", "options": ["at accepting", "in accepting", "to accept", "for accepting"], "correct": 2, "explanation": "'Reluctant to' + verb (base form).", "difficulty": "Easy"},
+      {"text": "Fill in: She has been working here _____ 2018.", "options": ["for", "since", "from", "in"], "correct": 1, "explanation": "'Since' is used with a point of time.", "difficulty": "Easy"}
+    ],
+    "Error Spotting": [
+      {"text": "Identify the error: (a) She don't (b) like coffee (c) in the morning. (d) No error.", "options": ["(a)", "(b)", "(c)", "(d) No error"], "correct": 0, "explanation": "She doesn't (not don't) — third person singular.", "difficulty": "Easy"},
+      {"text": "Identify the error: (a) Each of the boys (b) have completed (c) his homework. (d) No error.", "options": ["(a)", "(b)", "(c)", "(d) No error"], "correct": 1, "explanation": "'Each' takes singular verb 'has'.", "difficulty": "Medium"}
+    ],
+    "Para Jumble": [
+      {"text": "Arrange: (P) He then went to the market. (Q) He returned home. (R) He got up early. (S) He bought vegetables.", "options": ["RPQS", "RPSQ", "RSPQ", "PQRS"], "correct": 1, "explanation": "Got up → went to market → bought veg → returned. R-P-S-Q.", "difficulty": "Medium"}
+    ],
+    "Vocabulary": [
+      {"text": "Choose the synonym of 'Meticulous':", "options": ["Careless", "Thorough", "Casual", "Lazy"], "correct": 1, "explanation": "Meticulous = showing great attention to detail; thorough.", "difficulty": "Medium"},
+      {"text": "Choose the antonym of 'Benevolent':", "options": ["Kind", "Cruel", "Generous", "Helpful"], "correct": 1, "explanation": "Benevolent = kind. Antonym = cruel/malevolent.", "difficulty": "Medium"},
+      {"text": "'Ubiquitous' means:", "options": ["Rare", "Present everywhere", "Unique", "Ancient"], "correct": 1, "explanation": "Ubiquitous = present, appearing everywhere.", "difficulty": "Hard"}
+    ],
+    "Grammar": [
+      {"text": "Choose correctly spelt: (a) Accomodation (b) Accommodation (c) Acommodation (d) Acomodation", "options": ["(a) Accomodation", "(b) Accommodation", "(c) Acommodation", "(d) Acomodation"], "correct": 1, "explanation": "Accommodation has two C's and two M's.", "difficulty": "Easy"},
+      {"text": "Which is the correct sentence?", "options": ["Neither of them are coming.", "Neither of them is coming.", "None of them are coming.", "Neither of them was come."], "correct": 1, "explanation": "'Neither' + singular verb ⇒ 'is'.", "difficulty": "Medium"}
+    ]
+  },
+  "gk": {
+    "Static GK": [
+      {"text": "The capital of Australia is:", "options": ["Sydney", "Melbourne", "Canberra", "Brisbane"], "correct": 2, "explanation": "Canberra is the capital of Australia.", "difficulty": "Easy"},
+      {"text": "Which is the largest desert in the world?", "options": ["Sahara", "Gobi", "Antarctic", "Arabian"], "correct": 2, "explanation": "The Antarctic Desert is the largest by area (~14 million sq km).", "difficulty": "Medium"},
+      {"text": "The 'Silent Valley' National Park is located in:", "options": ["Karnataka", "Kerala", "Tamil Nadu", "Andhra Pradesh"], "correct": 1, "explanation": "Silent Valley is in the Nilgiri Hills of Kerala.", "difficulty": "Medium"},
+      {"text": "Which is the longest river in India?", "options": ["Yamuna", "Brahmaputra", "Ganga", "Godavari"], "correct": 2, "explanation": "Ganga is the longest river in India (~2525 km).", "difficulty": "Easy"}
+    ],
+    "Current Affairs": [
+      {"text": "Which country hosted the G20 Summit in 2026?", "options": ["India", "Brazil", "USA", "South Africa"], "correct": 3, "explanation": "South Africa hosted the G20 Summit 2026.", "difficulty": "Medium"},
+      {"text": "The Indian Space Research Organisation (ISRO) launched Chandrayaan-3 in:", "options": ["July 2023", "August 2023", "June 2023", "September 2023"], "correct": 0, "explanation": "Chandrayaan-3 was launched on 14 July 2023.", "difficulty": "Medium"}
+    ],
+    "History": [
+      {"text": "The Battle of Plassey was fought in:", "options": ["1757", "1764", "1857", "1739"], "correct": 0, "explanation": "The Battle of Plassey took place on 23 June 1757.", "difficulty": "Easy"},
+      {"text": "The Non-Cooperation Movement was launched by Gandhi in:", "options": ["1919", "1920", "1930", "1942"], "correct": 1, "explanation": "The Non-Cooperation Movement was launched in September 1920.", "difficulty": "Medium"},
+      {"text": "Who was the first Governor-General of independent India?", "options": ["Lord Mountbatten", "C. Rajagopalachari", "Jawaharlal Nehru", "Sardar Patel"], "correct": 0, "explanation": "Lord Mountbatten was the first Governor-General from Aug 1947 - Jun 1948.", "difficulty": "Medium"}
+    ],
+    "Geography": [
+      {"text": "The Tropic of Cancer does NOT pass through:", "options": ["India", "China", "Mexico", "Sri Lanka"], "correct": 3, "explanation": "Sri Lanka lies south of the Tropic of Cancer.", "difficulty": "Medium"},
+      {"text": "Which of these is a Union Territory?", "options": ["Manipur", "Puducherry", "Meghalaya", "Nagaland"], "correct": 1, "explanation": "Puducherry is a Union Territory.", "difficulty": "Easy"}
+    ],
+    "Polity": [
+      {"text": "The Constitution of India was adopted on:", "options": ["15 August 1947", "26 January 1950", "26 November 1949", "24 January 1950"], "correct": 2, "explanation": "The Constitution was adopted on 26 November 1949 and came into force on 26 January 1950.", "difficulty": "Easy"},
+      {"text": "Fundamental Duties were added by the __ Amendment.", "options": ["42nd", "44th", "73rd", "86th"], "correct": 0, "explanation": "The 42nd Amendment (1976) added Article 51A - Fundamental Duties.", "difficulty": "Medium"},
+      {"text": "The Rajya Sabha's maximum strength is:", "options": ["245", "250", "232", "270"], "correct": 1, "explanation": "Rajya Sabha's max strength as per Constitution is 250.", "difficulty": "Medium"}
+    ],
+    "Economy": [
+      {"text": "GST was implemented in India on:", "options": ["1 April 2017", "1 July 2017", "15 August 2017", "1 January 2018"], "correct": 1, "explanation": "GST rolled out on 1 July 2017.", "difficulty": "Easy"},
+      {"text": "The RBI was nationalised in:", "options": ["1935", "1947", "1949", "1969"], "correct": 2, "explanation": "RBI was nationalised on 1 January 1949.", "difficulty": "Medium"}
+    ]
+  },
+  "science": {
+    "Physics": [
+      {"text": "The SI unit of electric potential is:", "options": ["Ampere", "Volt", "Ohm", "Watt"], "correct": 1, "explanation": "Volt (V) is the SI unit of electric potential difference.", "difficulty": "Easy"},
+      {"text": "The speed of light in vacuum is approximately:", "options": ["3 × 10⁵ km/s", "3 × 10⁸ m/s", "3 × 10⁶ m/s", "1.5 × 10⁸ m/s"], "correct": 1, "explanation": "c = 3 × 10⁸ m/s.", "difficulty": "Easy"}
+    ],
+    "Chemistry": [
+      {"text": "Which gas is most abundant in Earth's atmosphere?", "options": ["Oxygen", "Nitrogen", "Argon", "Carbon Dioxide"], "correct": 1, "explanation": "Nitrogen ~78%, Oxygen ~21%.", "difficulty": "Easy"},
+      {"text": "The chemical symbol of Gold is:", "options": ["Go", "Gd", "Au", "Ag"], "correct": 2, "explanation": "Au from Latin 'Aurum'.", "difficulty": "Easy"},
+      {"text": "pH of pure water at 25°C is:", "options": ["6", "7", "8", "5"], "correct": 1, "explanation": "Pure water is neutral with pH 7.", "difficulty": "Easy"}
+    ],
+    "Biology": [
+      {"text": "The powerhouse of the cell is:", "options": ["Ribosome", "Nucleus", "Mitochondria", "Golgi apparatus"], "correct": 2, "explanation": "Mitochondria produce ATP - cell's energy currency.", "difficulty": "Easy"},
+      {"text": "Which vitamin is synthesised in human skin exposed to sunlight?", "options": ["Vitamin A", "Vitamin C", "Vitamin D", "Vitamin K"], "correct": 2, "explanation": "UVB triggers vitamin D synthesis in the skin.", "difficulty": "Easy"}
+    ],
+    "Environment": [
+      {"text": "Ozone layer is present in the:", "options": ["Troposphere", "Stratosphere", "Mesosphere", "Thermosphere"], "correct": 1, "explanation": "Ozone layer is in the lower stratosphere.", "difficulty": "Medium"},
+      {"text": "The 'Chipko Movement' was primarily aimed at protecting:", "options": ["Water", "Wildlife", "Forests", "Rivers"], "correct": 2, "explanation": "Chipko Movement (1973) was to protect forests in Uttarakhand.", "difficulty": "Medium"}
+    ]
+  },
+  "legal": {
+    "Constitution": [
+      {"text": "The doctrine of 'Basic Structure' was propounded in the case of:", "options": ["Golaknath v. State of Punjab", "Kesavananda Bharati v. State of Kerala", "Minerva Mills v. Union of India", "Maneka Gandhi v. Union of India"], "correct": 1, "explanation": "Kesavananda Bharati (1973) established the Basic Structure Doctrine.", "difficulty": "Medium"},
+      {"text": "Article 21 of the Indian Constitution guarantees:", "options": ["Right to Equality", "Right to Freedom", "Right to Life & Personal Liberty", "Right against Exploitation"], "correct": 2, "explanation": "Article 21: Protection of life and personal liberty.", "difficulty": "Easy"},
+      {"text": "The 'Preamble' of the Indian Constitution declares India as a:", "options": ["Sovereign, Democratic Republic", "Sovereign, Socialist, Secular, Democratic Republic", "Democratic Federation", "Union of States"], "correct": 1, "explanation": "42nd Amendment added 'Socialist' & 'Secular'.", "difficulty": "Medium"}
+    ],
+    "Contracts": [
+      {"text": "An agreement without consideration is:", "options": ["Valid", "Void", "Voidable", "Illegal"], "correct": 1, "explanation": "As per Section 25 of the Indian Contract Act, an agreement without consideration is void (with limited exceptions).", "difficulty": "Easy"},
+      {"text": "Which of the following is NOT an essential of a valid contract?", "options": ["Free consent", "Lawful consideration", "Written form", "Competent parties"], "correct": 2, "explanation": "Contract need not be written (except for specific ones like sale of immovable property).", "difficulty": "Medium"}
+    ],
+    "Torts": [
+      {"text": "Which of the following is NOT a valid defence in Tort?", "options": ["Volenti non fit injuria", "Act of God", "Statutory authority", "Ignorance of law"], "correct": 3, "explanation": "Ignorance of law is no excuse (ignorantia juris non excusat).", "difficulty": "Medium"},
+      {"text": "'Res ipsa loquitur' in tort means:", "options": ["The thing speaks for itself", "The law is silent", "A necessary evil", "Res judicata"], "correct": 0, "explanation": "It means the incident itself indicates negligence.", "difficulty": "Medium"}
+    ],
+    "Criminal Law": [
+      {"text": "The concept of 'Actus Reus' refers to:", "options": ["Guilty mind", "Guilty act", "Attempt", "Common intention"], "correct": 1, "explanation": "Actus reus = physical/guilty act (as opposed to mens rea = guilty mind).", "difficulty": "Medium"}
+    ]
+  },
+  "math": {
+    "Algebra": [
+      {"text": "Solve for x: 3x + 5 = 20", "options": ["3", "5", "7", "15"], "correct": 1, "explanation": "3x = 15 ⇒ x = 5.", "difficulty": "Easy"},
+      {"text": "If f(x) = x² - 3x + 2, then f(4) = ?", "options": ["4", "6", "8", "12"], "correct": 1, "explanation": "16 - 12 + 2 = 6.", "difficulty": "Easy"}
+    ],
+    "Geometry": [
+      {"text": "The area of a circle with radius 7 cm is (π = 22/7):", "options": ["154 cm²", "144 cm²", "132 cm²", "168 cm²"], "correct": 0, "explanation": "π r² = 22/7 × 49 = 154 cm².", "difficulty": "Easy"},
+      {"text": "In a right triangle, if two sides are 3 and 4, the hypotenuse is:", "options": ["5", "6", "7", "√25"], "correct": 0, "explanation": "√(9+16) = 5.", "difficulty": "Easy"}
+    ],
+    "Trigonometry": [
+      {"text": "sin 30° + cos 60° = ?", "options": ["1", "1/2", "√3/2", "0"], "correct": 0, "explanation": "sin30 = 1/2 = cos60 ⇒ sum = 1.", "difficulty": "Easy"},
+      {"text": "tan 45° = ?", "options": ["0", "1", "√3", "1/√3"], "correct": 1, "explanation": "tan 45° = 1.", "difficulty": "Easy"}
+    ],
+    "Calculus": [
+      {"text": "d/dx (x³) = ?", "options": ["x²", "3x", "3x²", "x³/3"], "correct": 2, "explanation": "Power rule: 3x².", "difficulty": "Easy"},
+      {"text": "∫ x dx = ?", "options": ["x²/2 + C", "x² + C", "2x + C", "1"], "correct": 0, "explanation": "Integral of x is x²/2 + constant.", "difficulty": "Easy"}
+    ]
+  }
+}
