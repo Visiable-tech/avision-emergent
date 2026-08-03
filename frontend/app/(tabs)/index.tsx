@@ -46,6 +46,7 @@ export default function Home() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [reels, setReels] = useState<any[]>([]);
   const [liveBatches, setLiveBatches] = useState<any[]>([]);
+  const [tpEntitlement, setTpEntitlement] = useState<any>(null);
   const [bannerIdx, setBannerIdx] = useState(0);
   const [batchIdx, setBatchIdx] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -54,7 +55,7 @@ export default function Home() {
 
   const load = useCallback(async () => {
     try {
-      const [g, b, la, mt, dc, jb, rl, lb] = await Promise.all([
+      const [g, b, la, mt, dc, jb, rl, lb, ent] = await Promise.all([
         api.greeting(),
         api.banners(categoryId || undefined),
         api.currentAffairsLatest(categoryId || undefined).catch(() => null),
@@ -63,6 +64,7 @@ export default function Home() {
         api.jobAlerts(categoryId || undefined, 10),
         api.reels(categoryId || undefined, 10).catch(() => ({ reels: [] })),
         api.liveBatches(categoryId || undefined, 10).catch(() => ({ batches: [] })),
+        user?.user_id ? api.tpEntitlement(user.user_id).catch(() => null) : Promise.resolve(null),
       ]);
       setGreeting(g);
       setBanners(b.banners || []);
@@ -72,6 +74,7 @@ export default function Home() {
       setJobs(jb.jobs || []);
       setReels(rl.reels || []);
       setLiveBatches(lb.batches || []);
+      setTpEntitlement(ent);
     } catch (e) { console.warn('home load', e); }
   }, [categoryId, user?.user_id]);
 
@@ -232,6 +235,77 @@ export default function Home() {
             <Text style={s.trioLabel}>Practice</Text>
           </Pressable>
         </View>
+
+        {/* 2b. TEST PRIME premium card */}
+        {(() => {
+          const isPrime = !!tpEntitlement?.is_prime;
+          return (
+            <Pressable
+              testID="test-prime-card"
+              style={tp.card}
+              onPress={() => router.push('/test-prime')}
+            >
+              <LinearGradient
+                colors={['#8B5A2B', '#C68A2D', '#F59E0B']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              {/* Decorative crown backdrop */}
+              <View style={tp.crownBg}>
+                <MaterialCommunityIcons name="crown-outline" size={140} color="rgba(255,255,255,0.12)" />
+              </View>
+
+              <View style={tp.topRow}>
+                <View style={tp.crownChip}>
+                  <MaterialCommunityIcons name="crown" size={12} color="#7C4A0C" />
+                  <Text style={tp.crownChipTxt}>AVISION</Text>
+                </View>
+                <View style={{ flex: 1 }} />
+                {isPrime ? (
+                  <View style={tp.activeChip}>
+                    <Ionicons name="checkmark-circle" size={12} color="#065F46" />
+                    <Text style={tp.activeChipTxt}>PRIME ACTIVE</Text>
+                  </View>
+                ) : (
+                  <View style={tp.lockChip}>
+                    <Ionicons name="lock-closed" size={11} color="#FFF" />
+                    <Text style={tp.lockChipTxt}>PRIME</Text>
+                  </View>
+                )}
+              </View>
+
+              <Text style={tp.title}>TEST PRIME</Text>
+              <Text style={tp.tag}>One Pass. Every Exam. Unlimited Practice.</Text>
+
+              {/* Feature bullets in grid */}
+              <View style={tp.featGrid}>
+                {['Full Mocks', 'Sectional', 'Topic', 'PYQ', 'Speed', 'All India Rank'].map((f) => (
+                  <View key={f} style={tp.featPill}>
+                    <Ionicons name="checkmark" size={11} color="#7C4A0C" />
+                    <Text style={tp.featPillTxt}>{f}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={tp.ctaRow}>
+                <View style={tp.stats}>
+                  <Text style={tp.statVal}>500+</Text>
+                  <Text style={tp.statLbl}>Exams</Text>
+                </View>
+                <View style={tp.statsDiv} />
+                <View style={tp.stats}>
+                  <Text style={tp.statVal}>10K+</Text>
+                  <Text style={tp.statLbl}>Tests</Text>
+                </View>
+                <View style={{ flex: 1 }} />
+                <View style={tp.ctaBtn}>
+                  <Text style={tp.ctaBtnTxt}>{isPrime ? 'Continue' : 'Explore'}</Text>
+                  <Ionicons name="arrow-forward" size={14} color="#7C4A0C" />
+                </View>
+              </View>
+            </Pressable>
+          );
+        })()}
 
         {/* 2. Quick Access grid – pastel tiles */}
         <SectionTitle title={t('quickAccess')} />
@@ -692,6 +766,37 @@ const lb = StyleSheet.create({
   },
   stripFooterTxt: { color: '#FFF', fontSize: 11, fontWeight: '800' },
   stripFooterSub: { color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: '600' },
+});
+
+// Test Prime card styles (premium copper-gold)
+const tp = StyleSheet.create({
+  card: {
+    marginTop: 22, marginHorizontal: 16,
+    borderRadius: 24, overflow: 'hidden', padding: 16, minHeight: 210,
+    ...(Platform.OS === 'ios'
+      ? { shadowColor: '#8B5A2B', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.28, shadowRadius: 18 }
+      : { elevation: 10 }),
+  },
+  crownBg: { position: 'absolute', right: -30, top: -20, opacity: 0.35 },
+  topRow: { flexDirection: 'row', alignItems: 'center' },
+  crownChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  crownChipTxt: { color: '#7C4A0C', fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
+  lockChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  lockChipTxt: { color: '#FFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
+  activeChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#D1FAE5', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  activeChipTxt: { color: '#065F46', fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
+  title: { color: '#FFF', fontSize: 30, fontWeight: '900', letterSpacing: 1.5, marginTop: 12 },
+  tag: { color: 'rgba(255,255,255,0.95)', fontSize: 13, fontWeight: '600', marginTop: 4 },
+  featGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 14 },
+  featPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  featPillTxt: { color: '#7C4A0C', fontSize: 11, fontWeight: '800' },
+  ctaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
+  stats: {},
+  statVal: { color: '#FFF', fontSize: 17, fontWeight: '900' },
+  statLbl: { color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
+  statsDiv: { width: 1, height: 26, backgroundColor: 'rgba(255,255,255,0.35)' },
+  ctaBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999 },
+  ctaBtnTxt: { color: '#7C4A0C', fontSize: 13, fontWeight: '900', letterSpacing: 0.2 },
 });
 
 

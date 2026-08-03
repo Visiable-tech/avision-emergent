@@ -48,6 +48,35 @@ export const api = {
   examInfo: (category?: string) =>
     req(`/exam-info${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   examInfoDetail: (id: string) => req(`/exam-info/${id}`),
+  // Test Prime
+  tpCategories: () => req('/test-prime/categories'),
+  tpExams: (category?: string, state?: string, q?: string) => {
+    const p = new URLSearchParams();
+    if (category) p.set('category', category);
+    if (state) p.set('state', state);
+    if (q) p.set('q', q);
+    const qs = p.toString();
+    return req(`/test-prime/exams${qs ? `?${qs}` : ''}`);
+  },
+  tpExamDetail: (id: string) => req(`/test-prime/exams/${id}`),
+  tpTestTypes: () => req('/test-prime/test-types'),
+  tpTests: (opts: { exam?: string; category?: string; type?: string; free_only?: boolean; prime_only?: boolean; sort?: string; q?: string; user_id?: string } = {}) => {
+    const p = new URLSearchParams();
+    Object.entries(opts).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') p.set(k, String(v));
+    });
+    const qs = p.toString();
+    return req(`/test-prime/tests${qs ? `?${qs}` : ''}`);
+  },
+  tpTestDetail: (id: string, user_id?: string) =>
+    req(`/test-prime/tests/${id}${user_id ? `?user_id=${encodeURIComponent(user_id)}` : ''}`),
+  tpEntitlement: (user_id: string) => req(`/test-prime/entitlement?user_id=${encodeURIComponent(user_id)}`),
+  tpActivate: (user_id: string, plan: string, duration_days = 365) =>
+    req(`/test-prime/entitlement/activate?user_id=${encodeURIComponent(user_id)}`, {
+      method: 'POST', body: JSON.stringify({ plan, duration_days }),
+    }),
+  tpReset: (user_id: string) =>
+    req(`/test-prime/entitlement/reset?user_id=${encodeURIComponent(user_id)}`, { method: 'POST' }),
   dailyChallenges: (category?: string, userId?: string) => {
     const p = new URLSearchParams();
     if (category) p.set('category', category);
