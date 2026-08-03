@@ -49,6 +49,8 @@ export const api = {
     req(`/exam-info${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   examInfoDetail: (id: string) => req(`/exam-info/${id}`),
   // Test Prime
+  tpLanding: (category?: string) =>
+    req(`/test-prime/landing${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   tpCategories: () => req('/test-prime/categories'),
   tpExams: (category?: string, state?: string, q?: string) => {
     const p = new URLSearchParams();

@@ -1,62 +1,150 @@
-import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Platform, StatusBar as RNStatusBar, TextInput } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  RefreshControl,
+  Platform,
+  StatusBar as RNStatusBar,
+  TextInput,
+  Modal,
+  Linking,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, Stack } from 'expo-router';
-import { theme } from '@/src/theme';
 import { api } from '@/src/api';
 import { useAuth } from '@/src/AuthContext';
 
+type Cat = { id: string; name: string; icon: string; color: string; exam_count: number };
+type Exam = {
+  id: string;
+  name: string;
+  full_name: string;
+  logo: string;
+  color: string;
+  category_id: string;
+  tests_count: number;
+  free_tests: number;
+  languages: string[];
+};
+type Feature = { id: string; title: string; icon: string; iconLib: string; color: string; bg: string };
+type Faq = { q: string; a: string };
+type Plan = { id: string; label: string; months: number; price: number; mrp: number; discount_pct: number; popular: boolean };
+
+const HERO_GRADIENT = ['#F97316', '#F59E0B', '#FBBF24'] as const;
+
 export default function TestPrimeLanding() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [categories, setCategories] = useState<any[]>([]);
-  const [exams, setExams] = useState<any[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedCat, setSelectedCat] = useState<string>('banking');
   const [search, setSearch] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
+  const [categories, setCategories] = useState<Cat[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [features, setFeatures] = useState<Feature[]>([]);
+  const [highlights, setHighlights] = useState<string[]>([]);
+  const [faqs, setFaqs] = useState<Faq[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>('12m');
   const [ent, setEnt] = useState<any>(null);
+
+  const [showAllHighlights, setShowAllHighlights] = useState(false);
+  const [expandedFaqs, setExpandedFaqs] = useState<Record<number, boolean>>({});
+  const [allFaqsOpen, setAllFaqsOpen] = useState(false);
+  const [planPickerOpen, setPlanPickerOpen] = useState(false);
+  const [choosePlanOpen, setChoosePlanOpen] = useState(false);
+  const [activating, setActivating] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [c, e, en] = await Promise.all([
-        api.tpCategories(),
-        api.tpExams(selectedCat, undefined, search.trim() || undefined),
+      const [bundle, en] = await Promise.all([
+        api.tpLanding(selectedCat),
         user?.user_id ? api.tpEntitlement(user.user_id).catch(() => null) : Promise.resolve(null),
       ]);
-      setCategories(c.categories || []);
-      setExams(e.exams || []);
+      setCategories(bundle.categories || []);
+      setExams(bundle.exams || []);
+      setFeatures(bundle.features || []);
+      setHighlights(bundle.highlights || []);
+      setFaqs(bundle.faqs || []);
+      setPlans(bundle.plans || []);
       setEnt(en);
-    } catch (err) { console.warn('tp landing', err); }
-  }, [selectedCat, search, user?.user_id]);
+    } catch (err) {
+      console.warn('tp landing', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCat, user?.user_id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
-
-  const isPrime = !!ent?.is_prime;
-  const totalTests = exams.reduce((a, x) => a + (x.tests_count || 0), 0);
-  const totalAspirants = exams.reduce((a, x) => a + (x.aspirants || 0), 0);
-
-  const activatePrime = async () => {
-    if (!user?.user_id) return;
-    try {
-      const r = await api.tpActivate(user.user_id, 'prime', 365);
-      setEnt(r);
-    } catch (e) { console.warn('activate', e); }
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
   };
+
+  const filteredExams = useMemo(() => {
+    if (!search.trim()) return exams;
+    const q = search.trim().toLowerCase();
+    return exams.filter(
+      (e) => e.name.toLowerCase().includes(q) || (e.full_name || '').toLowerCase().includes(q),
+    );
+  }, [exams, search]);
+
+  const topExams = filteredExams.slice(0, 3);
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId) || plans[plans.length - 1];
+  const isPrime = !!ent?.is_prime;
+
+  const toggleFaq = (i: number) => {
+    setExpandedFaqs((p) => ({ ...p, [i]: !p[i] }));
+  };
+  const toggleAllFaqs = () => {
+    const next = !allFaqsOpen;
+    setAllFaqsOpen(next);
+    const map: Record<number, boolean> = {};
+    faqs.forEach((_, i) => (map[i] = next));
+    setExpandedFaqs(map);
+  };
+
+  const handleChoosePlan = async () => {
+    if (!user?.user_id || !selectedPlan) return;
+    try {
+      setActivating(true);
+      const days = selectedPlan.months * 30;
+      const r = await api.tpActivate(user.user_id, 'prime', days);
+      setEnt(r);
+      setChoosePlanOpen(false);
+    } catch (e) {
+      console.warn('activate', e);
+    } finally {
+      setActivating(false);
+    }
+  };
+
   const resetPrime = async () => {
     if (!user?.user_id) return;
-    try { await api.tpReset(user.user_id); setEnt(null); } catch {}
+    try {
+      await api.tpReset(user.user_id);
+      setEnt(null);
+    } catch {}
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.surfaceSecondary }}>
+    <View style={{ flex: 1, backgroundColor: '#F1F5F9' }}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Hero: Copper-Gold */}
-      <LinearGradient colors={['#7C4A0C', '#B7791F', '#F59E0B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
+      {/* ============================= HERO ============================= */}
+      <LinearGradient colors={HERO_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
         <SafeAreaView edges={['top']}>
           <View style={s.headerRow}>
             {router.canGoBack() ? (
@@ -68,182 +156,804 @@ export default function TestPrimeLanding() {
                 <MaterialCommunityIcons name="crown" size={20} color="#FCD34D" />
               </View>
             )}
-            <View style={{ flex: 1, marginLeft: 6 }}>
+            <View style={{ flex: 1, marginLeft: 8 }}>
               <View style={s.brandChip}>
-                <MaterialCommunityIcons name="crown" size={12} color="#7C4A0C" />
+                <MaterialCommunityIcons name="crown" size={12} color="#B45309" />
                 <Text style={s.brandChipTxt}>AVISION</Text>
               </View>
             </View>
-            <Pressable onPress={() => router.push('/(tabs)/profile')} testID="tp-profile" hitSlop={12} style={s.iconBtn}>
-              <Ionicons name="person-circle-outline" size={22} color="#FFF" />
+            <Pressable
+              onPress={() => router.push('/(tabs)/profile')}
+              testID="tp-profile"
+              hitSlop={12}
+              style={s.iconBtn}
+            >
+              <Ionicons name="person-circle-outline" size={24} color="#FFF" />
             </Pressable>
           </View>
+
           <Text style={s.title}>TEST PRIME</Text>
           <Text style={s.tag}>One Pass. Every Exam. Unlimited Practice.</Text>
 
-          {/* Search */}
           <View style={s.searchWrap}>
-            <Ionicons name="search-outline" size={16} color="#7C4A0C" />
+            <Ionicons name="search-outline" size={16} color="#94A3B8" />
             <TextInput
               testID="tp-search"
               value={search}
               onChangeText={setSearch}
-              placeholder="Search exam (SBI PO, CLAT, IPMAT…)"
-              placeholderTextColor="rgba(124,74,12,0.55)"
+              placeholder="Search exam (SBI PO, CLAT, IPMAT...)"
+              placeholderTextColor="#94A3B8"
               style={s.searchInput}
+              returnKeyType="search"
             />
-          </View>
-
-          {/* Status pill */}
-          <View style={s.statusRow}>
-            {isPrime ? (
-              <View style={s.activeBar}>
-                <Ionicons name="checkmark-circle" size={14} color="#065F46" />
-                <Text style={s.activeBarTxt}>PRIME ACTIVE • {ent?.plan || 'Test Prime'}</Text>
-                <View style={{ flex: 1 }} />
-                <Pressable onPress={resetPrime} testID="tp-reset"><Text style={s.linkTxt}>Reset</Text></Pressable>
-              </View>
-            ) : (
-              <View style={s.upgradeBar}>
-                <Ionicons name="lock-closed" size={14} color="#FFF" />
-                <Text style={s.upgradeTxt}>Unlock unlimited tests • demo activation</Text>
-                <View style={{ flex: 1 }} />
-                <Pressable onPress={activatePrime} style={s.getPrimeBtn} testID="tp-activate">
-                  <Text style={s.getPrimeTxt}>Get Prime</Text>
-                </Pressable>
-              </View>
+            {!!search && (
+              <Pressable onPress={() => setSearch('')} hitSlop={8}>
+                <Ionicons name="close-circle" size={16} color="#94A3B8" />
+              </Pressable>
             )}
           </View>
+
+          {isPrime && (
+            <View style={s.activeBar}>
+              <Ionicons name="checkmark-circle" size={14} color="#065F46" />
+              <Text style={s.activeBarTxt}>PRIME ACTIVE • {ent?.plan || 'Test Prime'}</Text>
+              <View style={{ flex: 1 }} />
+              <Pressable onPress={resetPrime} testID="tp-reset" hitSlop={8}>
+                <Text style={s.linkTxt}>Reset</Text>
+              </Pressable>
+            </View>
+          )}
         </SafeAreaView>
       </LinearGradient>
 
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 140 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#B7791F" />}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Category selector – horizontal chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catRow}>
-          {categories.map((c) => {
-            const active = c.id === selectedCat;
-            return (
-              <Pressable
-                key={c.id}
-                testID={`tp-cat-${c.id}`}
-                onPress={() => setSelectedCat(c.id)}
-                style={[s.catChip, active && { backgroundColor: c.color, borderColor: c.color }]}
-              >
-                <Ionicons name={c.icon as any} size={14} color={active ? '#FFF' : c.color} />
-                <Text style={[s.catChipTxt, active && { color: '#FFF' }]}>{c.name}</Text>
-                {c.exam_count > 0 && (
-                  <View style={[s.catCount, active && { backgroundColor: 'rgba(255,255,255,0.24)' }]}>
-                    <Text style={[s.catCountTxt, active && { color: '#FFF' }]}>{c.exam_count}</Text>
+      {loading ? (
+        <View style={s.loading}>
+          <ActivityIndicator color="#F59E0B" />
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 140 + insets.bottom }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#F59E0B" />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ==================== CATEGORY TABS ==================== */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.catRow}
+          >
+            {categories.map((c) => {
+              const active = c.id === selectedCat;
+              return (
+                <Pressable
+                  key={c.id}
+                  testID={`tp-cat-${c.id}`}
+                  onPress={() => setSelectedCat(c.id)}
+                  style={[
+                    s.catChip,
+                    active && { backgroundColor: c.color, borderColor: c.color },
+                  ]}
+                >
+                  <Ionicons
+                    name={c.icon as any}
+                    size={14}
+                    color={active ? '#FFF' : c.color}
+                  />
+                  <Text style={[s.catChipTxt, active && { color: '#FFF' }]}>{c.name}</Text>
+                  {c.exam_count > 0 && (
+                    <View style={[s.catCount, active && s.catCountActive]}>
+                      <Text style={[s.catCountTxt, active && { color: '#FFF' }]}>
+                        {c.exam_count}
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          {/* ==================== EXAMS SECTION ==================== */}
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Exams</Text>
+            <View style={s.card}>
+              {topExams.map((e, idx) => (
+                <Pressable
+                  key={e.id}
+                  testID={`tp-exam-${e.id}`}
+                  onPress={() => router.push(`/test-prime/exam/${e.id}` as any)}
+                  style={[s.examRow, idx < topExams.length - 1 && s.examRowDivider]}
+                >
+                  <View style={[s.examLogo, { backgroundColor: `${e.color}15` }]}>
+                    <Text style={[s.examLogoTxt, { color: e.color }]} numberOfLines={1}>
+                      {e.logo}
+                    </Text>
                   </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={s.langRow}>
+                      {e.languages.slice(0, 2).map((l) => (
+                        <View key={l} style={s.langChip}>
+                          <Text style={s.langChipTxt}>{l}</Text>
+                        </View>
+                      ))}
+                    </View>
+                    <Text style={s.examName} numberOfLines={2}>
+                      {e.name} 2026 Mock Test Series
+                    </Text>
+                    <Text style={s.examMeta}>
+                      <Text style={s.examMetaBold}>{e.tests_count} Tests</Text>
+                      <Text style={s.examFree}>  + {e.free_tests} Free Tests</Text>
+                    </Text>
+                  </View>
+                  <View style={s.chevBtn}>
+                    <Ionicons name="chevron-forward" size={16} color="#FFF" />
+                  </View>
+                </Pressable>
+              ))}
+              {topExams.length === 0 && (
+                <View style={s.emptyRow}>
+                  <MaterialCommunityIcons
+                    name="clipboard-search-outline"
+                    size={40}
+                    color="#94A3B8"
+                  />
+                  <Text style={s.emptyTxt}>No exams match your search.</Text>
+                </View>
+              )}
+            </View>
+
+            <Pressable
+              testID="tp-view-all"
+              onPress={() => router.push(`/test-prime/exam/${topExams[0]?.id || 'sbi-po'}` as any)}
+              style={s.viewAllBtn}
+            >
+              <Text style={s.viewAllTxt}>VIEW ALL</Text>
+            </Pressable>
+          </View>
+
+          {/* ==================== SALIENT FEATURES ==================== */}
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Salient Features</Text>
+            <View style={s.featGrid}>
+              {features.map((f) => (
+                <View key={f.id} style={s.featCard}>
+                  <View style={[s.featIconWrap, { backgroundColor: f.bg }]}>
+                    {f.iconLib === 'material' ? (
+                      <MaterialCommunityIcons
+                        name={f.icon as any}
+                        size={22}
+                        color={f.color}
+                      />
+                    ) : (
+                      <Ionicons name={f.icon as any} size={22} color={f.color} />
+                    )}
+                  </View>
+                  <Text style={s.featTxt} numberOfLines={2}>
+                    {f.title}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* ==================== PRODUCT HIGHLIGHTS ==================== */}
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Product Highlights</Text>
+            <View style={s.card}>
+              {(showAllHighlights ? highlights : highlights.slice(0, 5)).map((h, i) => (
+                <View key={i} style={s.highlightRow}>
+                  <View style={s.checkWrap}>
+                    <Ionicons name="checkmark" size={14} color="#2563EB" />
+                  </View>
+                  <Text style={s.highlightTxt}>{h}</Text>
+                </View>
+              ))}
+              {highlights.length > 5 && (
+                <Pressable
+                  onPress={() => setShowAllHighlights((v) => !v)}
+                  style={s.showMoreBtn}
+                  testID="tp-show-more"
+                >
+                  <Text style={s.showMoreTxt}>
+                    {showAllHighlights ? 'SHOW LESS' : 'SHOW MORE'}
+                  </Text>
+                  <Ionicons
+                    name={showAllHighlights ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color="#2563EB"
+                  />
+                </Pressable>
+              )}
+            </View>
+          </View>
+
+          {/* ==================== FAQ ==================== */}
+          <View style={s.section}>
+            <View style={s.faqHead}>
+              <Text style={s.sectionTitle}>FAQ</Text>
+              <Pressable onPress={toggleAllFaqs} testID="tp-expand-all" hitSlop={8}>
+                <Text style={s.expandAllTxt}>
+                  {allFaqsOpen ? 'COLLAPSE ALL' : 'EXPAND ALL'}
+                </Text>
+              </Pressable>
+            </View>
+            <View style={s.card}>
+              {faqs.map((f, i) => {
+                const open = !!expandedFaqs[i];
+                return (
+                  <View key={i} style={[s.faqRow, i < faqs.length - 1 && s.faqDivider]}>
+                    <Pressable
+                      onPress={() => toggleFaq(i)}
+                      style={s.faqQRow}
+                      testID={`tp-faq-${i}`}
+                    >
+                      <Text style={s.faqQ} numberOfLines={open ? 0 : 3}>
+                        <Text style={s.faqIdx}>{i + 1}. </Text>
+                        {f.q}
+                      </Text>
+                      <Ionicons
+                        name={open ? 'chevron-up' : 'chevron-down'}
+                        size={16}
+                        color="#94A3B8"
+                        style={{ marginLeft: 8 }}
+                      />
+                    </Pressable>
+                    {open && <Text style={s.faqA}>{f.a}</Text>}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* ==================== NEED ANY HELP ==================== */}
+          <View style={s.section}>
+            <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Need any help?</Text>
+            <View style={[s.card, { paddingTop: 8 }]}>
+              <View style={s.supportIllus}>
+                <MaterialCommunityIcons
+                  name="face-agent"
+                  size={72}
+                  color="#0B4DB8"
+                />
+                <View style={s.supportBubble}>
+                  <MaterialCommunityIcons name="chat-processing" size={14} color="#FFF" />
+                </View>
+              </View>
+
+              <View style={s.supportBlock}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.supportTitle}>Get help with our 24×7 Support System</Text>
+                  <Text style={s.supportMeta}>(Mon - Sat | 9:00am - 9:00pm)</Text>
+                </View>
+                <Pressable
+                  style={s.supportBtn}
+                  onPress={() => Linking.openURL('mailto:support@avisioninstitute.com')}
+                  testID="tp-contact"
+                >
+                  <Text style={s.supportBtnTxt}>CONTACT US</Text>
+                </Pressable>
+              </View>
+
+              <View style={[s.supportBlock, { borderTopWidth: 1, borderTopColor: '#F1F5F9' }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.supportTitle}>Call us directly for purchase related queries</Text>
+                  <Text style={s.supportMeta}>(Mon - Sat | 9:00am - 9:00pm)</Text>
+                </View>
+                <Pressable
+                  style={s.supportBtn}
+                  onPress={() => Linking.openURL('tel:+919000012345')}
+                  testID="tp-call"
+                >
+                  <Text style={s.supportBtnTxt}>CALL NOW</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      )}
+
+      {/* ==================== STICKY BOTTOM BAR ==================== */}
+      {!!selectedPlan && (
+        <View style={[s.stickyBar, { paddingBottom: 12 + insets.bottom }]}>
+          <View style={s.planTopRow}>
+            <Text style={s.planLbl}>Our Plans</Text>
+            <Pressable
+              onPress={() => setPlanPickerOpen(true)}
+              style={s.planPicker}
+              testID="tp-plan-picker"
+            >
+              <Text style={s.planPickerTxt}>{selectedPlan.label}</Text>
+              <Ionicons name="chevron-down" size={14} color="#0F172A" />
+            </Pressable>
+          </View>
+          <View style={s.planBottomRow}>
+            <View style={{ flexShrink: 1 }}>
+              <View style={s.priceRow}>
+                <Text style={s.price}>₹{selectedPlan.price}</Text>
+                <Pressable style={s.moreOffersBtn}>
+                  <Text style={s.moreOffersTxt}>MORE OFFERS</Text>
+                </Pressable>
+              </View>
+              <View style={s.priceMetaRow}>
+                <Text style={s.mrp}>₹{selectedPlan.mrp.toFixed(1)}</Text>
+                <Text style={s.discount}>({selectedPlan.discount_pct}% off)</Text>
+              </View>
+            </View>
+            <Pressable
+              style={s.choosePlanBtn}
+              onPress={() => setChoosePlanOpen(true)}
+              testID="tp-choose-plan"
+            >
+              <Text style={s.choosePlanTxt}>{isPrime ? 'RENEW PLAN' : 'CHOOSE PLAN'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* ==================== PLAN PICKER MODAL ==================== */}
+      <Modal
+        visible={planPickerOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPlanPickerOpen(false)}
+      >
+        <Pressable style={s.modalBackdrop} onPress={() => setPlanPickerOpen(false)}>
+          <Pressable style={[s.sheet, { paddingBottom: 20 + insets.bottom }]}>
+            <View style={s.sheetHandle} />
+            <Text style={s.sheetTitle}>Select Validity</Text>
+            {plans.map((p) => {
+              const active = p.id === selectedPlanId;
+              return (
+                <Pressable
+                  key={p.id}
+                  onPress={() => {
+                    setSelectedPlanId(p.id);
+                    setPlanPickerOpen(false);
+                  }}
+                  style={[s.planItem, active && s.planItemActive]}
+                  testID={`tp-plan-${p.id}`}
+                >
+                  <View
+                    style={[
+                      s.radio,
+                      active && { borderColor: '#F59E0B', backgroundColor: '#F59E0B' },
+                    ]}
+                  >
+                    {active && <Ionicons name="checkmark" size={12} color="#FFF" />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={s.planItemLbl}>{p.label}</Text>
+                      {p.popular && (
+                        <View style={s.popBadge}>
+                          <Text style={s.popBadgeTxt}>POPULAR</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={s.planItemSub}>
+                      ₹{p.price}   <Text style={s.planItemMrp}>₹{p.mrp}</Text>   
+                      <Text style={s.planItemDisc}>{p.discount_pct}% off</Text>
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ==================== CHOOSE PLAN CONFIRM MODAL ==================== */}
+      <Modal
+        visible={choosePlanOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setChoosePlanOpen(false)}
+      >
+        <View style={s.confirmBackdrop}>
+          <View style={s.confirmCard}>
+            <View style={s.confirmIcon}>
+              <MaterialCommunityIcons name="crown" size={36} color="#F59E0B" />
+            </View>
+            <Text style={s.confirmTitle}>Activate Test Prime?</Text>
+            <Text style={s.confirmSub}>
+              You’re about to unlock Test Prime for{' '}
+              <Text style={{ fontWeight: '900', color: '#0F172A' }}>{selectedPlan?.label}</Text> at{' '}
+              <Text style={{ fontWeight: '900', color: '#0F172A' }}>₹{selectedPlan?.price}</Text>.
+              {'\n\n'}
+              <Text style={{ fontSize: 11, color: '#94A3B8' }}>
+                (Demo activation — no real payment)
+              </Text>
+            </Text>
+            <View style={s.confirmBtnRow}>
+              <Pressable
+                style={[s.confirmBtn, s.confirmBtnGhost]}
+                onPress={() => setChoosePlanOpen(false)}
+                disabled={activating}
+                testID="tp-confirm-cancel"
+              >
+                <Text style={s.confirmBtnGhostTxt}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[s.confirmBtn, s.confirmBtnPrimary]}
+                onPress={handleChoosePlan}
+                disabled={activating}
+                testID="tp-confirm-activate"
+              >
+                {activating ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={s.confirmBtnPrimaryTxt}>Activate</Text>
                 )}
               </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {/* Stat strip */}
-        <View style={s.statStrip}>
-          <View style={s.strip}>
-            <Text style={s.stripVal}>{exams.length}</Text>
-            <Text style={s.stripLbl}>Exams</Text>
-          </View>
-          <View style={s.strip}>
-            <Text style={s.stripVal}>{totalTests}+</Text>
-            <Text style={s.stripLbl}>Tests</Text>
-          </View>
-          <View style={s.strip}>
-            <Text style={s.stripVal}>{formatK(totalAspirants)}</Text>
-            <Text style={s.stripLbl}>Aspirants</Text>
-          </View>
-        </View>
-
-        {/* Exam grid */}
-        <View style={s.examGrid}>
-          {exams.map((e) => (
-            <Pressable
-              key={e.id}
-              testID={`tp-exam-${e.id}`}
-              style={s.examCard}
-              onPress={() => router.push(`/test-prime/exam/${e.id}`)}
-            >
-              <View style={[s.examLogo, { backgroundColor: `${e.color}15` }]}>
-                <Text style={[s.examLogoTxt, { color: e.color }]}>{e.logo}</Text>
-              </View>
-              <Text style={s.examName} numberOfLines={2}>{e.name}</Text>
-              <Text style={s.examFull} numberOfLines={2}>{e.full_name}</Text>
-              <View style={s.examBottom}>
-                <View style={s.testsBadge}>
-                  <Ionicons name="document-text-outline" size={11} color={e.color} />
-                  <Text style={[s.testsBadgeTxt, { color: e.color }]}>{e.tests_count} Tests</Text>
-                </View>
-                <View style={s.aspBadge}>
-                  <Ionicons name="people-outline" size={10} color={theme.colors.muted} />
-                  <Text style={s.aspBadgeTxt}>{formatK(e.aspirants)}</Text>
-                </View>
-              </View>
-            </Pressable>
-          ))}
-          {exams.length === 0 && (
-            <View style={s.empty}>
-              <MaterialCommunityIcons name="clipboard-search-outline" size={44} color={theme.colors.mutedLight} />
-              <Text style={s.emptyTxt}>No exams found. Try another category or search term.</Text>
             </View>
-          )}
+          </View>
         </View>
-      </ScrollView>
+      </Modal>
     </View>
   );
 }
 
-function formatK(n: number): string {
-  if (!n) return '0';
-  if (n >= 1_00_000) return `${(n / 1_00_000).toFixed(1)}L`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
-
 const s = StyleSheet.create({
-  hero: { paddingHorizontal: 16, paddingBottom: 22, paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 0) : 0 },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  // Hero
+  hero: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 0) : 0,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 6 },
-  iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' },
-  brandChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.95)', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
-  brandChipTxt: { color: '#7C4A0C', fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
-  title: { color: '#FFF', fontSize: 30, fontWeight: '900', marginTop: 12, letterSpacing: 1.5 },
-  tag: { color: 'rgba(255,255,255,0.9)', fontSize: 13, marginTop: 4, fontWeight: '600' },
-  searchWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, marginTop: 14 },
-  searchInput: { flex: 1, fontSize: 13, color: '#7C4A0C', paddingVertical: 0 },
-  statusRow: { marginTop: 12 },
-  activeBar: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#D1FAE5', padding: 10, borderRadius: 12 },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.20)',
+  },
+  brandChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  brandChipTxt: { color: '#B45309', fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
+  title: { color: '#FFF', fontSize: 32, fontWeight: '900', marginTop: 14, letterSpacing: 1.5 },
+  tag: { color: 'rgba(255,255,255,0.92)', fontSize: 13, marginTop: 4, fontWeight: '600' },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginTop: 16,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.08, shadowOffset: { width: 0, height: 2 }, shadowRadius: 6 },
+      android: { elevation: 2 },
+    }),
+  },
+  searchInput: { flex: 1, fontSize: 13.5, color: '#0F172A', paddingVertical: 0 },
+  activeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#D1FAE5',
+    padding: 10,
+    borderRadius: 12,
+    marginTop: 12,
+  },
   activeBarTxt: { color: '#065F46', fontSize: 12, fontWeight: '900' },
   linkTxt: { color: '#065F46', fontSize: 12, fontWeight: '700', textDecorationLine: 'underline' },
-  upgradeBar: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.28)', padding: 10, borderRadius: 12 },
-  upgradeTxt: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  getPrimeBtn: { backgroundColor: '#FFF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
-  getPrimeTxt: { color: '#7C4A0C', fontSize: 11, fontWeight: '900' },
+
+  // Category chips
   catRow: { paddingHorizontal: 16, paddingTop: 14, gap: 8 },
-  catChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
-  catChipTxt: { fontSize: 12.5, fontWeight: '800', color: theme.colors.onSurface },
-  catCount: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, backgroundColor: theme.colors.brandTertiary },
-  catCountTxt: { fontSize: 10, fontWeight: '900', color: theme.colors.brand },
-  statStrip: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 14 },
-  strip: { flex: 1, backgroundColor: theme.colors.surface, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' },
-  stripVal: { fontSize: 18, fontWeight: '900', color: theme.colors.onSurface },
-  stripLbl: { fontSize: 10.5, color: theme.colors.muted, fontWeight: '700', letterSpacing: 0.3, marginTop: 2 },
-  examGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 10, paddingTop: 12, gap: 10 },
-  examCard: { width: '48%', marginHorizontal: '1%', backgroundColor: theme.colors.surface, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: theme.colors.border },
-  examLogo: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  examLogoTxt: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
-  examName: { fontSize: 15, fontWeight: '900', color: theme.colors.onSurface, marginTop: 8 },
-  examFull: { fontSize: 11.5, color: theme.colors.muted, marginTop: 3, fontWeight: '600' },
-  examBottom: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
-  testsBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.colors.brandTertiary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  testsBadgeTxt: { fontSize: 10.5, fontWeight: '900' },
-  aspBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 'auto' },
-  aspBadgeTxt: { fontSize: 10.5, color: theme.colors.muted, fontWeight: '700' },
-  empty: { width: '100%', alignItems: 'center', paddingVertical: 40, gap: 10 },
-  emptyTxt: { color: theme.colors.muted, fontSize: 13, textAlign: 'center', paddingHorizontal: 24 },
+  catChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...Platform.select({
+      ios: { shadowColor: '#0B4DB8', shadowOpacity: 0.06, shadowOffset: { width: 0, height: 2 }, shadowRadius: 6 },
+      android: { elevation: 1 },
+    }),
+  },
+  catChipTxt: { fontSize: 12.5, fontWeight: '800', color: '#0F172A' },
+  catCount: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catCountActive: { backgroundColor: 'rgba(255,255,255,0.28)', borderColor: 'rgba(255,255,255,0.35)' },
+  catCountTxt: { fontSize: 10.5, fontWeight: '900', color: '#0F172A' },
+
+  // Section
+  section: { paddingHorizontal: 16, marginTop: 22 },
+  sectionTitle: { fontSize: 15.5, fontWeight: '900', color: '#0F172A', marginBottom: 10 },
+  card: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+    ...Platform.select({
+      ios: { shadowColor: '#0B4DB8', shadowOpacity: 0.05, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
+      android: { elevation: 1 },
+    }),
+  },
+
+  // Exam row
+  examRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  examRowDivider: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  examLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  examLogoTxt: { fontSize: 11, fontWeight: '900', letterSpacing: 0.4 },
+  langRow: { flexDirection: 'row', gap: 6 },
+  langChip: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  langChipTxt: { fontSize: 9, fontWeight: '800', color: '#64748B', letterSpacing: 0.5 },
+  examName: { fontSize: 14.5, fontWeight: '800', color: '#0F172A', marginTop: 6 },
+  examMeta: { marginTop: 4, fontSize: 12 },
+  examMetaBold: { color: '#64748B', fontWeight: '700' },
+  examFree: { color: '#059669', fontWeight: '700' },
+  chevBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#1F2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyRow: { alignItems: 'center', paddingVertical: 34, gap: 8 },
+  emptyTxt: { fontSize: 12.5, color: '#94A3B8' },
+  viewAllBtn: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+  },
+  viewAllTxt: { color: '#2563EB', fontSize: 12.5, fontWeight: '900', letterSpacing: 1 },
+
+  // Features grid
+  featGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  featCard: {
+    width: '48%',
+    backgroundColor: '#FFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    ...Platform.select({
+      ios: { shadowColor: '#0B4DB8', shadowOpacity: 0.05, shadowOffset: { width: 0, height: 2 }, shadowRadius: 6 },
+      android: { elevation: 1 },
+    }),
+  },
+  featIconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  featTxt: { flex: 1, fontSize: 12, fontWeight: '700', color: '#0F172A', lineHeight: 16 },
+
+  // Highlights
+  highlightRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  checkWrap: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  highlightTxt: { flex: 1, fontSize: 12.5, color: '#0F172A', lineHeight: 18, fontWeight: '500' },
+  showMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  showMoreTxt: { color: '#2563EB', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
+
+  // FAQ
+  faqHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  expandAllTxt: { color: '#2563EB', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
+  faqRow: { paddingHorizontal: 14, paddingVertical: 12 },
+  faqDivider: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  faqQRow: { flexDirection: 'row', alignItems: 'center' },
+  faqQ: { flex: 1, fontSize: 13, fontWeight: '600', color: '#0F172A', lineHeight: 18 },
+  faqIdx: { fontWeight: '900', color: '#0F172A' },
+  faqA: { fontSize: 12.5, color: '#64748B', lineHeight: 18, marginTop: 8 },
+
+  // Support
+  supportIllus: { alignItems: 'center', paddingVertical: 16, position: 'relative' },
+  supportBubble: {
+    position: 'absolute',
+    top: 12,
+    right: '38%',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supportBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 10,
+  },
+  supportTitle: { fontSize: 12.5, fontWeight: '700', color: '#0F172A', lineHeight: 17 },
+  supportMeta: { fontSize: 11, color: '#94A3B8', marginTop: 2, fontWeight: '600' },
+  supportBtn: {
+    borderWidth: 1,
+    borderColor: '#2563EB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  supportBtnTxt: { color: '#2563EB', fontSize: 11, fontWeight: '900', letterSpacing: 0.4 },
+
+  // Sticky bar
+  stickyBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#EEF2F7',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.08, shadowOffset: { width: 0, height: -4 }, shadowRadius: 10 },
+      android: { elevation: 12 },
+    }),
+  },
+  planTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  planLbl: { fontSize: 12.5, fontWeight: '700', color: '#64748B' },
+  planPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  planPickerTxt: { fontSize: 12, fontWeight: '900', color: '#0F172A' },
+  planBottomRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  price: { fontSize: 22, fontWeight: '900', color: '#0F172A' },
+  moreOffersBtn: {
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  moreOffersTxt: { color: '#2563EB', fontSize: 9.5, fontWeight: '900', letterSpacing: 0.4 },
+  priceMetaRow: { flexDirection: 'row', gap: 6, marginTop: 2 },
+  mrp: { fontSize: 11, color: '#94A3B8', textDecorationLine: 'line-through', fontWeight: '600' },
+  discount: { fontSize: 11, color: '#059669', fontWeight: '800' },
+  choosePlanBtn: {
+    marginLeft: 'auto',
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    ...Platform.select({
+      ios: { shadowColor: '#DC2626', shadowOpacity: 0.28, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
+      android: { elevation: 3 },
+    }),
+  },
+  choosePlanTxt: { color: '#FFF', fontSize: 13, fontWeight: '900', letterSpacing: 0.6 },
+
+  // Modal / sheet
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+  sheetTitle: { fontSize: 15, fontWeight: '900', color: '#0F172A', marginBottom: 10 },
+  planItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 8,
+  },
+  planItemActive: { borderColor: '#F59E0B', backgroundColor: '#FEF3C7' },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  planItemLbl: { fontSize: 14, fontWeight: '900', color: '#0F172A' },
+  planItemSub: { fontSize: 12, color: '#64748B', marginTop: 2, fontWeight: '600' },
+  planItemMrp: { textDecorationLine: 'line-through', color: '#94A3B8' },
+  planItemDisc: { color: '#059669', fontWeight: '900' },
+  popBadge: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  popBadgeTxt: { color: '#FFF', fontSize: 8.5, fontWeight: '900', letterSpacing: 0.4 },
+
+  // Confirm modal
+  confirmBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  confirmCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 24, alignItems: 'center', width: '100%', maxWidth: 380 },
+  confirmIcon: { width: 68, height: 68, borderRadius: 34, backgroundColor: '#FEF3C7', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  confirmTitle: { fontSize: 17, fontWeight: '900', color: '#0F172A', marginBottom: 8 },
+  confirmSub: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 19 },
+  confirmBtnRow: { flexDirection: 'row', gap: 10, marginTop: 22, alignSelf: 'stretch' },
+  confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  confirmBtnGhost: { borderWidth: 1, borderColor: '#E2E8F0' },
+  confirmBtnGhostTxt: { color: '#0F172A', fontSize: 13, fontWeight: '800' },
+  confirmBtnPrimary: { backgroundColor: '#DC2626' },
+  confirmBtnPrimaryTxt: { color: '#FFF', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
 });

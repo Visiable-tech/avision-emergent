@@ -344,8 +344,94 @@ def _is_test_unlocked(test: dict, ent: dict) -> bool:
     return False
 
 
+# ==================== SALIENT FEATURES / HIGHLIGHTS / FAQ / PLANS ====================
+TP_FEATURES = [
+    {"id": "pyp", "title": "25k+ Previous Year Papers", "icon": "history", "iconLib": "material", "color": "#2563EB", "bg": "#DBEAFE"},
+    {"id": "reattempt", "title": "Unlimited Re-Attempt", "icon": "refresh-circle", "iconLib": "ion", "color": "#D97706", "bg": "#FEF3C7"},
+    {"id": "refund", "title": "500% Refund", "icon": "cash-refund", "iconLib": "material", "color": "#059669", "bg": "#D1FAE5"},
+    {"id": "mock", "title": "1.5 Lakh+ Mock Tests", "icon": "chart-bar", "iconLib": "material", "color": "#7C3AED", "bg": "#EDE9FE"},
+]
+
+TP_HIGHLIGHTS = [
+    "Mock & Topic Tests based on Latest Pattern with Detailed Solutions",
+    "Overall & Sectional Analysis, Ranks and Comparison with Topper",
+    "Doubt Solving on App, Telegram Groups & In Person at Offline Centers",
+    "Seminar & Topper Talks at Offline Centers",
+    "In-Person Counselling, Physical Support Helpdesk at Test Prime Expiry",
+    "24×7 Chat & Call Support for Test Prime Members",
+    "Personalized Report Card and Adaptive Practice Suggestions",
+    "1-click Bilingual switch (English ⇄ Hindi) inside every test",
+    "AIR & Percentile ranking against 1L+ live aspirants",
+    "Downloadable PDFs of Solutions & Analysis after every test",
+]
+
+TP_FAQS = [
+    {"q": "What is Test Prime?", "a": "Test Prime is Avision’s single all-access pass that unlocks every mock, sectional, topic-wise and previous-year test across 40+ Government & Entrance exams — with detailed solutions, ranking, and analytics."},
+    {"q": "How many exams are covered under Test Prime?", "a": "Test Prime covers 40+ major exams across Banking, SSC, Railway, State PSCs, Teaching, Defence, Law, Management, CUET and UPSC — a total of 1.5 Lakh+ tests."},
+    {"q": "Will I also get the previous year's papers for the government exams under Test Prime?", "a": "Yes. You get access to 25k+ Previous Year Papers across all covered exams with detailed section-wise solutions."},
+    {"q": "Are topic-wise tests or daily quizzes included in the package?", "a": "Absolutely. Test Prime includes Sectional, Subject, Topic, Speed, Daily and Current Affairs tests, updated every day."},
+    {"q": "Can I reattempt a test?", "a": "Yes — every test can be reattempted unlimited times. Your best score, latest score and average are all tracked in your Report Card."},
+    {"q": "Are the mock tests updated according to the latest exam pattern?", "a": "Every test on Test Prime is aligned with the officially notified latest pattern (2026). We revise papers within 48 hours of any pattern change."},
+    {"q": "When will the mock tests be available in my account?", "a": "All tests are unlocked instantly the moment your Test Prime is activated. Live mocks appear as per the published schedule."},
+    {"q": "How to access the test series?", "a": "Open the Avision app → Test Prime tab → pick your exam → Start Test. Tests can be paused and resumed on any device."},
+    {"q": "What is 1-month or 12-month validity?", "a": "Validity is the duration for which your Test Prime pass stays active from the day of purchase. All benefits are available throughout that duration."},
+    {"q": "What is a Personalized Report Card?", "a": "After every attempt, we generate a detailed report with topic-wise accuracy, time management, weak-area suggestions and comparison against toppers."},
+    {"q": "What is the 500% Refund on Selection Policy?", "a": "If you clear the final selection of any exam covered under Test Prime, we refund 5× the amount you paid — subject to verification of your appointment letter."},
+    {"q": "Does the subscription include a multilingual test series, or do I need to buy them separately?", "a": "All bilingual (English + Hindi) tests are included. Additional regional languages are available for Railway and select State exams at no extra cost."},
+    {"q": "Will I be able to access my attempted tests even after the Test Prime Expiry?", "a": "Yes — your attempt history, report cards and PDF solutions remain accessible read-only even after expiry."},
+    {"q": "What happens if I renew the Prime before the expiry date?", "a": "Your remaining days automatically get added to the new plan — you never lose a single day."},
+]
+
+TP_PLANS = [
+    {"id": "1m", "label": "1 Month", "months": 1, "price": 99, "mrp": 299, "discount_pct": 66, "popular": False},
+    {"id": "3m", "label": "3 Months", "months": 3, "price": 199, "mrp": 599, "discount_pct": 66, "popular": False},
+    {"id": "6m", "label": "6 Months", "months": 6, "price": 249, "mrp": 799, "discount_pct": 68, "popular": True},
+    {"id": "12m", "label": "12 Months", "months": 12, "price": 299, "mrp": 999, "discount_pct": 70, "popular": True},
+    {"id": "24m", "label": "24 Months", "months": 24, "price": 499, "mrp": 1999, "discount_pct": 75, "popular": False},
+]
+
+
 # ==================== ROUTES ====================
 router = APIRouter(prefix="/api/test-prime", tags=["test-prime"])
+
+
+@router.get("/landing")
+async def landing_bundle(category: Optional[str] = None):
+    """One-shot bundle for the Test Prime landing screen."""
+    # Build category counts
+    counts = {}
+    for e in EXAMS:
+        counts[e["category_id"]] = counts.get(e["category_id"], 0) + 1
+    categories = [{**c, "exam_count": counts.get(c["id"], 0)} for c in TP_CATEGORIES]
+
+    # Filter exams by category
+    exams = EXAMS
+    if category:
+        exams = [e for e in exams if e["category_id"] == category]
+
+    # Compute free-test count per exam (from generated seed tests)
+    exam_ids = {e["id"] for e in exams}
+    free_by_exam: dict = {}
+    for t in TESTS:
+        if t["exam_id"] in exam_ids and t.get("is_free"):
+            free_by_exam[t["exam_id"]] = free_by_exam.get(t["exam_id"], 0) + 1
+
+    enriched = []
+    for e in exams:
+        enriched.append({
+            **e,
+            "free_tests": free_by_exam.get(e["id"], 3),
+            "languages": ["ENGLISH", "HINDI"],
+        })
+
+    return {
+        "categories": categories,
+        "exams": enriched,
+        "features": TP_FEATURES,
+        "highlights": TP_HIGHLIGHTS,
+        "faqs": TP_FAQS,
+        "plans": TP_PLANS,
+    }
 
 
 @router.get("/categories")
