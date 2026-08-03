@@ -162,6 +162,22 @@ export const api = {
   }) => req(`/test-prime/admin/tests`, { method: 'POST', body: JSON.stringify(body) }),
   tpAdminDeleteTest: (tid: string) =>
     req(`/test-prime/admin/tests/${tid}`, { method: 'DELETE' }),
+
+  // Magazine
+  magazines: (category?: string) =>
+    req(`/magazine${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+  magazineIssue: (id: string) => req(`/magazine/${id}`),
+  magazineArticle: (id: string) => req(`/magazine/article/${id}`),
+
+  // Booster
+  boosters: (category?: string, subject?: string) => {
+    const p = new URLSearchParams();
+    if (category) p.set('category', category);
+    if (subject) p.set('subject', subject);
+    const qs = p.toString();
+    return req(`/booster${qs ? `?${qs}` : ''}`);
+  },
+  boosterPack: (id: string) => req(`/booster/${id}`),
   dailyChallenges: (category?: string, userId?: string) => {
     const p = new URLSearchParams();
     if (category) p.set('category', category);

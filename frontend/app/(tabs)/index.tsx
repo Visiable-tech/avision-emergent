@@ -122,10 +122,8 @@ export default function Home() {
       case 'feed': router.push('/feed'); break;
       case 'ca-booklet': router.push('/(tabs)/current-affairs'); break;
       case 'planner': router.push('/planner'); break;
-      case 'magazine':
-      case 'booster':
-        Alert.alert('Coming Soon', 'This section is being crafted for you. Stay tuned!');
-        break;
+      case 'magazine': router.push('/magazine' as any); break;
+      case 'booster': router.push('/booster' as any); break;
       default: router.push('/(tabs)/profile');
     }
   };

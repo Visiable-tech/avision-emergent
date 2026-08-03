@@ -39,6 +39,7 @@ from reels import router as reels_router
 from live_batches import router as live_batches_router
 from exam_info import router as exam_info_router
 from test_prime import init_test_prime, ensure_test_prime_indexes, router as test_prime_router
+from magazine_booster import init_magazine_booster, router as magazine_booster_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -61,6 +62,7 @@ init_categories(db)
 init_home(db)
 init_feed(db)
 init_test_prime(db)
+init_magazine_booster(db)
 
 
 def _get_courses():
@@ -77,6 +79,7 @@ app.include_router(reels_router)
 app.include_router(live_batches_router)
 app.include_router(exam_info_router)
 app.include_router(test_prime_router)
+app.include_router(magazine_booster_router)
 
 
 @app.on_event("startup")
