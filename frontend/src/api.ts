@@ -79,6 +79,39 @@ export const api = {
     }),
   tpReset: (user_id: string) =>
     req(`/test-prime/entitlement/reset?user_id=${encodeURIComponent(user_id)}`, { method: 'POST' }),
+  // Test Prime — CBT / Attempts
+  tpStartAttempt: (user_id: string, test_id: string, language?: string) =>
+    req(`/test-prime/attempts/start?user_id=${encodeURIComponent(user_id)}`, {
+      method: 'POST',
+      body: JSON.stringify({ test_id, language }),
+    }),
+  tpAttempt: (attempt_id: string, user_id: string) =>
+    req(`/test-prime/attempts/${attempt_id}?user_id=${encodeURIComponent(user_id)}`),
+  tpSaveState: (
+    attempt_id: string,
+    user_id: string,
+    state: {
+      answers?: Record<string, number>;
+      marked?: string[];
+      seen?: string[];
+      current_index?: number;
+      total_time_left_sec?: number;
+      section_times?: Record<string, number>;
+      active_section?: string;
+    },
+  ) =>
+    req(`/test-prime/attempts/${attempt_id}/state?user_id=${encodeURIComponent(user_id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(state),
+    }),
+  tpSubmitAttempt: (attempt_id: string, user_id: string) =>
+    req(`/test-prime/attempts/${attempt_id}/submit?user_id=${encodeURIComponent(user_id)}`, {
+      method: 'POST',
+    }),
+  tpAnalytics: (attempt_id: string, user_id: string) =>
+    req(`/test-prime/attempts/${attempt_id}/analytics?user_id=${encodeURIComponent(user_id)}`),
+  tpListAttempts: (user_id: string, limit = 20) =>
+    req(`/test-prime/attempts?user_id=${encodeURIComponent(user_id)}&limit=${limit}`),
   dailyChallenges: (category?: string, userId?: string) => {
     const p = new URLSearchParams();
     if (category) p.set('category', category);

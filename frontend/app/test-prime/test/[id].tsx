@@ -30,7 +30,7 @@ export default function TestPrimeInstructions() {
     })();
   }, [id, user?.user_id]);
 
-  const startTest = () => {
+  const startTest = async () => {
     if (!test) return;
     if (!test.unlocked) {
       Alert.alert('Prime Required', 'Unlock this test with Test Prime to continue.');
@@ -40,7 +40,16 @@ export default function TestPrimeInstructions() {
       Alert.alert('Please confirm', 'Tick the checkbox to confirm you have read the instructions.');
       return;
     }
-    router.replace('/quiz');
+    if (!user?.user_id) {
+      Alert.alert('Login required', 'Please log in to attempt this test.');
+      return;
+    }
+    try {
+      const attempt = await api.tpStartAttempt(user.user_id, test.id, lang);
+      router.replace(`/test-prime/attempt/${attempt.attempt_id}` as any);
+    } catch (e: any) {
+      Alert.alert('Could not start', e?.message || 'Please try again.');
+    }
   };
 
   const activatePrime = async () => {

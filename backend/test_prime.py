@@ -562,5 +562,441 @@ async def reset_entitlement(user_id: str):
     return {"ok": True}
 
 
+# ==================== CBT ENGINE — Attempts + Analytics + Ranking ====================
+import hashlib
+import random
+import statistics
+
+# Topic templates per broad subject — used to tag questions for analytics
+_TOPIC_MAP = {
+    "quant": ["Number System", "Algebra", "Percentage", "Time & Work", "Data Interpretation", "Averages", "Ratio", "Profit & Loss"],
+    "reasoning": ["Puzzles", "Blood Relations", "Coding-Decoding", "Syllogism", "Series", "Direction", "Seating Arrangement"],
+    "english": ["Reading Comprehension", "Cloze Test", "Error Spotting", "Para Jumble", "Vocabulary", "Grammar"],
+    "gk": ["Static GK", "Current Affairs", "History", "Geography", "Polity", "Economy"],
+    "science": ["Physics", "Chemistry", "Biology", "Environment"],
+    "legal": ["Constitution", "Contracts", "Torts", "Criminal Law", "IPR"],
+    "math": ["Algebra", "Geometry", "Trigonometry", "Calculus", "Number Theory"],
+    "general": ["Mixed Topics", "Analytical", "Application", "Reasoning"],
+}
+
+def _subject_key(section_name: str) -> str:
+    n = section_name.lower()
+    if any(k in n for k in ["quant", "arith", "aptitude", "numerical"]): return "quant"
+    if any(k in n for k in ["reason", "intell", "logic", "mental"]): return "reasoning"
+    if "english" in n or "verbal" in n or "language" in n: return "english"
+    if "aware" in n or "awareness" in n or "current" in n or "general knowledge" in n: return "gk"
+    if "science" in n or "physics" in n or "chemistry" in n or "biology" in n: return "science"
+    if "legal" in n or "law" in n: return "legal"
+    if "math" in n and "aptitude" not in n: return "math"
+    return "general"
+
+
+def _gen_question_bank(test: dict, seed: int) -> List[dict]:
+    """Generate a full question paper for one attempt (with correct answers on server)."""
+    rnd = random.Random(seed)
+    pattern = PATTERNS.get(test["pattern_id"], {})
+    sections = pattern.get("sections") or [{"name": "General", "questions": test.get("questions", 20), "marks": test.get("marks", 40), "duration_min": test.get("duration_min", 30)}]
+
+    questions: List[dict] = []
+    qidx = 0
+    for sec in sections:
+        subj = _subject_key(sec["name"])
+        topics = _TOPIC_MAP.get(subj, _TOPIC_MAP["general"])
+        qcount = int(sec.get("questions") or 0)
+        per_q_marks = round((sec.get("marks", 0) / max(1, qcount)), 2) if qcount else 1
+        for i in range(qcount):
+            qidx += 1
+            topic = topics[i % len(topics)]
+            correct_idx = rnd.randint(0, 3)
+            # Build believable stems + options; kept short for demo/CBT rendering
+            stem = _q_stem(subj, topic, i + 1, rnd)
+            options = _q_options(subj, topic, correct_idx, rnd)
+            questions.append({
+                "id": f"q{qidx}",
+                "section": sec["name"],
+                "subject": subj,
+                "topic": topic,
+                "text": stem,
+                "options": options,
+                "correct": correct_idx,
+                "marks": per_q_marks,
+                "difficulty": ["Easy", "Medium", "Hard"][rnd.randint(0, 2)],
+                "explanation": f"The correct answer is Option {chr(65 + correct_idx)}. This tests your understanding of {topic}.",
+            })
+    return questions
+
+
+def _q_stem(subject: str, topic: str, n: int, rnd: random.Random) -> str:
+    if subject == "quant":
+        a, b = rnd.randint(11, 99), rnd.randint(2, 20)
+        stems = [
+            f"If x = {a} and y = {b}, find the value of x + 2y.",
+            f"The average of first {a} natural numbers is:",
+            f"A shopkeeper marks his goods {b}% above cost and gives a discount of 10%. His profit % is:",
+            f"Find the compound interest on ₹{a * 100} at {b}% p.a. for 2 years.",
+            f"Simplify: √{a * a}  +  {b}² =",
+            f"If {a}% of a number is {b * 4}, then the number is:",
+        ]
+        return f"Q{n}. {stems[n % len(stems)]}"
+    if subject == "reasoning":
+        stems = [
+            f"If MOTHER is coded as OQVJGT, how is FATHER coded?",
+            f"Pointing to a man, Riya said, 'He is the only son of my mother's father'. How is the man related to Riya?",
+            f"Find the odd one out: 121, 144, 169, 200",
+            f"Statement: All roses are flowers. Some flowers fade quickly. Conclusion?",
+            f"Which number should come next in the series: 2, 6, 12, 20, 30, __ ?",
+            f"If A is South-East of B, and C is North-East of B, then A is in which direction of C?",
+        ]
+        return f"Q{n}. {stems[n % len(stems)]}"
+    if subject == "english":
+        stems = [
+            f"Choose the correct synonym of 'Meticulous':",
+            f"Identify the error: 'She don't like coffee in the morning.'",
+            f"Fill in the blank: The manager was reluctant _____ the proposal.",
+            f"Choose the antonym of 'Ephemeral':",
+            f"Rearrange the para: (P) He then went to the market. (Q) He returned home. (R) He got up early. (S) He bought vegetables.",
+            f"Choose the correctly spelt word:",
+        ]
+        return f"Q{n}. {stems[n % len(stems)]}"
+    if subject == "gk":
+        stems = [
+            f"Who is the current Governor of the Reserve Bank of India (2026)?",
+            f"The Constitution of India was adopted on which date?",
+            f"'Silent Valley' is a national park located in which state?",
+            f"Which country hosted the G20 Summit in 2026?",
+            f"The 'Fundamental Duties' were added to the Constitution by which amendment?",
+            f"Which is the longest river in India?",
+        ]
+        return f"Q{n}. {stems[n % len(stems)]}"
+    if subject == "legal":
+        stems = [
+            f"Under the Indian Contract Act, an agreement without consideration is:",
+            f"The doctrine of 'Basic Structure' was propounded in which case?",
+            f"Article 21 of the Constitution guarantees:",
+            f"Which of the following is NOT a valid defence in Tort?",
+            f"The concept of 'Actus Reus' refers to:",
+        ]
+        return f"Q{n}. {stems[n % len(stems)]}"
+    if subject == "math":
+        a, b = rnd.randint(3, 15), rnd.randint(2, 9)
+        stems = [
+            f"Solve for x: {a}x + {b} = {a * 2 + b}",
+            f"The value of sin({a * 15}°) + cos({a * 15}°) is:",
+            f"If f(x) = x² - {a}x + {b}, then f'(x) at x = 2 is:",
+            f"The area of a circle with radius {a} cm is (π = 3.14):",
+        ]
+        return f"Q{n}. {stems[n % len(stems)]}"
+    if subject == "science":
+        stems = [
+            f"The unit of electric potential is:",
+            f"Which gas is most abundant in Earth's atmosphere?",
+            f"The powerhouse of the cell is:",
+            f"Which vitamin is produced by the skin in sunlight?",
+        ]
+        return f"Q{n}. {stems[n % len(stems)]}"
+    # general
+    return f"Q{n}. Practice question on {topic}. Choose the most appropriate option."
+
+
+def _q_options(subject: str, topic: str, correct: int, rnd: random.Random) -> List[str]:
+    # Generate 4 plausible options; correct one is at position `correct`.
+    pool_map = {
+        "quant": ["24", "36", "42", "58", "64", "72", "84", "98", "112", "125", "140", "160", "180", "216", "225"],
+        "reasoning": ["Uncle", "Brother", "Father", "Son", "Nephew", "Cousin", "North", "East", "West", "South"],
+        "english": ["Careful", "Careless", "Precise", "Detailed", "Thorough", "Sloppy", "Casual", "Attentive"],
+        "gk": ["1949", "1950", "1951", "1935", "Kerala", "Karnataka", "Tamil Nadu", "Andhra Pradesh", "India", "USA", "UK", "Brazil"],
+        "legal": ["Valid", "Void", "Voidable", "Illegal", "Kesavananda Bharati", "Golaknath", "Minerva Mills", "Maneka Gandhi"],
+        "math": ["2", "3", "4", "5", "6", "7", "8", "9", "10", "12", "15", "20", "24", "28.26", "50.24", "78.5"],
+        "science": ["Volt", "Ampere", "Ohm", "Watt", "Nitrogen", "Oxygen", "Argon", "Carbon Dioxide", "Nucleus", "Mitochondria", "Ribosome", "Golgi"],
+        "general": ["Option A", "Option B", "Option C", "Option D"],
+    }
+    pool = pool_map.get(subject, pool_map["general"])
+    picked = rnd.sample(pool, k=4) if len(pool) >= 4 else pool[:4] + ["N/A"] * (4 - len(pool))
+    return picked
+
+
+def _percentile_rank(user_score: float, dist: List[float]) -> float:
+    if not dist: return 0.0
+    below = sum(1 for x in dist if x < user_score)
+    return round(100.0 * below / len(dist), 2)
+
+
+def _synthetic_score_distribution(total_marks: float, aspirants: int, seed: int) -> List[float]:
+    """Generate a bell-ish distribution around 40-55% of total_marks."""
+    rnd = random.Random(seed)
+    mu = total_marks * 0.48
+    sigma = total_marks * 0.14
+    # Cap population to reasonable size for compute
+    n = min(max(aspirants, 500), 25000)
+    return [max(0.0, min(total_marks, rnd.gauss(mu, sigma))) for _ in range(n)]
+
+
+@router.post("/attempts/start")
+async def start_attempt(user_id: str, body: dict):
+    """Start a new attempt. Body: {test_id: string, language?: string}"""
+    test_id = body.get("test_id")
+    if not test_id:
+        raise HTTPException(400, "test_id required")
+    test = next((x for x in TESTS if x["id"] == test_id), None)
+    if not test:
+        raise HTTPException(404, "Test not found")
+    ent = await _get_entitlement(user_id)
+    if not _is_test_unlocked(test, ent):
+        raise HTTPException(402, "Test locked — activate Prime")
+
+    attempt_id = uuid.uuid4().hex
+    seed = int(hashlib.md5(f"{user_id}:{test_id}:{attempt_id}".encode()).hexdigest()[:8], 16)
+    questions = _gen_question_bank(test, seed)
+    pattern = PATTERNS.get(test["pattern_id"], {})
+    sections_meta = pattern.get("sections") or [{"name": "General", "questions": test["questions"], "marks": test["marks"], "duration_min": test["duration_min"]}]
+
+    now = datetime.now(timezone.utc)
+    doc = {
+        "attempt_id": attempt_id,
+        "user_id": user_id,
+        "test_id": test_id,
+        "test_name": test["name"],
+        "exam_id": test["exam_id"],
+        "exam_name": test["exam_name"],
+        "category_id": test["category_id"],
+        "pattern_id": test["pattern_id"],
+        "language": body.get("language", "English"),
+        "started_at": now.isoformat(),
+        "submitted_at": None,
+        "status": "in_progress",
+        "sections": [
+            {
+                "name": s["name"],
+                "total_questions": s.get("questions", 0),
+                "total_marks": s.get("marks", 0),
+                "duration_sec": (s.get("duration_min", 30) * 60),
+                "time_left_sec": (s.get("duration_min", 30) * 60),
+                "started": False,
+                "completed": False,
+            } for s in sections_meta
+        ],
+        "sectional_timing": pattern.get("sectional_timing", False),
+        "total_duration_sec": pattern.get("total_duration_min", test.get("duration_min", 30)) * 60,
+        "total_time_left_sec": pattern.get("total_duration_min", test.get("duration_min", 30)) * 60,
+        "negative_marking": pattern.get("negative_marking", 0),
+        "questions": questions,  # stored server-side (with correct)
+        "answers": {},           # qid -> option_idx
+        "marked": [],            # [qid]
+        "seen": [],              # [qid]
+        "current_index": 0,
+        # analytics fields populated on submit:
+        "score": None, "percentage": None, "rank": None, "percentile": None,
+        "correct_count": None, "wrong_count": None, "unattempted_count": None,
+        "accuracy": None, "time_spent_sec": None,
+    }
+    await _db.tp_attempts.insert_one(doc)
+
+    # Return sanitized (no correct answers)
+    return _public_attempt(doc)
+
+
+def _public_attempt(doc: dict) -> dict:
+    d = {k: v for k, v in doc.items() if k not in ("_id",)}
+    if d.get("status") != "submitted":
+        # Strip correct answers before returning to client
+        d = {**d, "questions": [_strip_q(q) for q in d.get("questions", [])]}
+    return d
+
+
+def _strip_q(q: dict) -> dict:
+    return {k: v for k, v in q.items() if k not in ("correct", "explanation")}
+
+
+@router.get("/attempts/{attempt_id}")
+async def get_attempt(attempt_id: str, user_id: str):
+    doc = await _db.tp_attempts.find_one({"attempt_id": attempt_id, "user_id": user_id}, {"_id": 0})
+    if not doc: raise HTTPException(404, "Attempt not found")
+    return _public_attempt(doc)
+
+
+@router.patch("/attempts/{attempt_id}/state")
+async def save_state(attempt_id: str, user_id: str, body: dict):
+    """Save partial state during a live test. Body: {answers?, marked?, seen?, current_index?, section_times?: {name: time_left_sec}, total_time_left_sec?}"""
+    doc = await _db.tp_attempts.find_one({"attempt_id": attempt_id, "user_id": user_id})
+    if not doc: raise HTTPException(404, "Attempt not found")
+    if doc.get("status") == "submitted":
+        return _public_attempt(doc)
+
+    update = {}
+    if "answers" in body: update["answers"] = body["answers"] or {}
+    if "marked" in body: update["marked"] = list(set(body["marked"] or []))
+    if "seen" in body: update["seen"] = list(set(body["seen"] or []))
+    if "current_index" in body: update["current_index"] = int(body["current_index"] or 0)
+    if "total_time_left_sec" in body: update["total_time_left_sec"] = int(body["total_time_left_sec"])
+    if "section_times" in body:
+        st_map = body["section_times"] or {}
+        new_secs = []
+        for s in doc.get("sections", []):
+            nt = st_map.get(s["name"])
+            if nt is not None:
+                s["time_left_sec"] = max(0, int(nt))
+            new_secs.append(s)
+        update["sections"] = new_secs
+    if "active_section" in body:
+        # mark started
+        act = body["active_section"]
+        new_secs = update.get("sections") or doc.get("sections", [])
+        for s in new_secs:
+            if s["name"] == act: s["started"] = True
+        update["sections"] = new_secs
+
+    await _db.tp_attempts.update_one({"attempt_id": attempt_id}, {"$set": update})
+    doc = await _db.tp_attempts.find_one({"attempt_id": attempt_id}, {"_id": 0})
+    return _public_attempt(doc)
+
+
+@router.post("/attempts/{attempt_id}/submit")
+async def submit_attempt(attempt_id: str, user_id: str):
+    """Score + compute full analytics + AIR/percentile."""
+    doc = await _db.tp_attempts.find_one({"attempt_id": attempt_id, "user_id": user_id})
+    if not doc: raise HTTPException(404, "Attempt not found")
+    if doc.get("status") == "submitted":
+        return _public_result(doc)
+
+    questions: List[dict] = doc.get("questions", [])
+    answers: dict = doc.get("answers", {}) or {}
+    neg = float(doc.get("negative_marking") or 0)
+    test = next((t for t in TESTS if t["id"] == doc["test_id"]), None)
+    exam = next((e for e in EXAMS if e["id"] == doc["exam_id"]), None)
+    aspirants = int((exam or {}).get("aspirants", 12000))
+
+    correct_count = 0
+    wrong_count = 0
+    unattempted_count = 0
+    total_marks = 0.0
+    score = 0.0
+
+    # Per-section + per-topic aggregates
+    sec_agg: dict = {}
+    topic_agg: dict = {}
+    diff_agg = {"Easy": {"total": 0, "correct": 0, "wrong": 0}, "Medium": {"total": 0, "correct": 0, "wrong": 0}, "Hard": {"total": 0, "correct": 0, "wrong": 0}}
+
+    review_list: List[dict] = []
+
+    for q in questions:
+        total_marks += float(q.get("marks", 1))
+        sec = q.get("section", "General")
+        topic = q.get("topic", "General")
+        diff = q.get("difficulty", "Medium")
+        sec_agg.setdefault(sec, {"section": sec, "total": 0, "correct": 0, "wrong": 0, "unattempted": 0, "score": 0.0, "max_score": 0.0, "accuracy": 0.0})
+        topic_agg.setdefault(f"{sec}|{topic}", {"section": sec, "topic": topic, "total": 0, "correct": 0, "wrong": 0, "accuracy": 0.0})
+
+        sec_agg[sec]["total"] += 1
+        sec_agg[sec]["max_score"] += float(q.get("marks", 1))
+        topic_agg[f"{sec}|{topic}"]["total"] += 1
+        diff_agg[diff]["total"] += 1
+
+        ans = answers.get(q["id"])
+        if ans is None:
+            unattempted_count += 1
+            sec_agg[sec]["unattempted"] += 1
+            status_ = "unattempted"
+        elif int(ans) == int(q["correct"]):
+            correct_count += 1
+            score += float(q.get("marks", 1))
+            sec_agg[sec]["correct"] += 1
+            sec_agg[sec]["score"] += float(q.get("marks", 1))
+            topic_agg[f"{sec}|{topic}"]["correct"] += 1
+            diff_agg[diff]["correct"] += 1
+            status_ = "correct"
+        else:
+            wrong_count += 1
+            score -= neg
+            sec_agg[sec]["wrong"] += 1
+            sec_agg[sec]["score"] -= neg
+            topic_agg[f"{sec}|{topic}"]["wrong"] += 1
+            diff_agg[diff]["wrong"] += 1
+            status_ = "wrong"
+
+        review_list.append({
+            "id": q["id"], "section": sec, "topic": topic, "difficulty": diff,
+            "text": q["text"], "options": q["options"],
+            "correct": q["correct"], "user": ans if ans is not None else None,
+            "explanation": q.get("explanation", ""), "status": status_,
+            "marks_earned": float(q.get("marks", 1)) if status_ == "correct" else (-neg if status_ == "wrong" else 0.0),
+        })
+
+    attempted = correct_count + wrong_count
+    accuracy = round(100.0 * correct_count / attempted, 2) if attempted else 0.0
+    percentage = round(100.0 * max(0.0, score) / max(1.0, total_marks), 2)
+
+    # Sectional accuracy
+    for k, v in sec_agg.items():
+        v["accuracy"] = round(100.0 * v["correct"] / max(1, v["correct"] + v["wrong"]), 2)
+        v["score"] = round(v["score"], 2)
+    for k, v in topic_agg.items():
+        v["accuracy"] = round(100.0 * v["correct"] / max(1, v["correct"] + v["wrong"]), 2)
+
+    # Rank + Percentile using synthetic distribution
+    dist = _synthetic_score_distribution(total_marks, aspirants, seed=hash(doc["test_id"]) & 0xffffffff)
+    percentile = _percentile_rank(score, dist)
+    total_pop = len(dist)
+    rank = max(1, int(round((100.0 - percentile) / 100.0 * total_pop))) if total_pop else 1
+    # scale to full aspirant pool visual number
+    scale = aspirants / max(1, total_pop)
+    virtual_rank = max(1, int(round(rank * scale)))
+    topper_score = round(max(dist + [score]), 2)
+    avg_score = round(statistics.mean(dist), 2) if dist else 0.0
+
+    # Time spent
+    started = datetime.fromisoformat(doc["started_at"])
+    now = datetime.now(timezone.utc)
+    time_spent = int(max(0, (now - started).total_seconds()))
+
+    result = {
+        "status": "submitted",
+        "submitted_at": now.isoformat(),
+        "time_spent_sec": time_spent,
+        "score": round(score, 2),
+        "max_score": round(total_marks, 2),
+        "percentage": percentage,
+        "correct_count": correct_count,
+        "wrong_count": wrong_count,
+        "unattempted_count": unattempted_count,
+        "attempted": attempted,
+        "total_questions": len(questions),
+        "accuracy": accuracy,
+        "rank": virtual_rank,
+        "percentile": percentile,
+        "aspirants": aspirants,
+        "topper_score": topper_score,
+        "average_score": avg_score,
+        "sectional": [sec_agg[s["name"]] for s in doc.get("sections", []) if s["name"] in sec_agg],
+        "topic_wise": list(topic_agg.values()),
+        "difficulty_wise": [{"difficulty": k, **v, "accuracy": round(100.0 * v["correct"] / max(1, v["correct"] + v["wrong"]), 2)} for k, v in diff_agg.items()],
+        "review": review_list,
+    }
+    await _db.tp_attempts.update_one({"attempt_id": attempt_id}, {"$set": result})
+    doc = await _db.tp_attempts.find_one({"attempt_id": attempt_id}, {"_id": 0})
+    return _public_result(doc)
+
+
+def _public_result(doc: dict) -> dict:
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@router.get("/attempts/{attempt_id}/analytics")
+async def get_analytics(attempt_id: str, user_id: str):
+    doc = await _db.tp_attempts.find_one({"attempt_id": attempt_id, "user_id": user_id}, {"_id": 0})
+    if not doc: raise HTTPException(404, "Attempt not found")
+    if doc.get("status") != "submitted":
+        raise HTTPException(400, "Attempt not submitted")
+    return doc
+
+
+@router.get("/attempts")
+async def list_attempts(user_id: str, limit: int = 20):
+    cur = _db.tp_attempts.find({"user_id": user_id}, {"_id": 0, "questions": 0, "review": 0}).sort("started_at", -1).limit(limit)
+    docs = await cur.to_list(length=limit)
+    return {"attempts": docs}
+
+
 async def ensure_test_prime_indexes(db):
     await db.tp_entitlements.create_index("user_id", unique=True)
+    await db.tp_attempts.create_index("attempt_id", unique=True)
+    await db.tp_attempts.create_index([("user_id", 1), ("started_at", -1)])
