@@ -12,6 +12,8 @@ import {
   Modal,
   Linking,
   ActivityIndicator,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -19,6 +21,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, Stack } from 'expo-router';
 import { api } from '@/src/api';
 import { useAuth } from '@/src/AuthContext';
+
+// Enable LayoutAnimation on Android for smooth expand/collapse
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const EXAM_PREVIEW_COUNT = 6;
+const EXPAND_ANIM = LayoutAnimation.create(
+  300,
+  LayoutAnimation.Types.easeInEaseOut,
+  LayoutAnimation.Properties.opacity,
+);
 
 type Cat = { id: string; name: string; icon: string; color: string; exam_count: number };
 type Exam = {
@@ -62,6 +76,8 @@ export default function TestPrimeLanding() {
   const [planPickerOpen, setPlanPickerOpen] = useState(false);
   const [choosePlanOpen, setChoosePlanOpen] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [examsExpanded, setExamsExpanded] = useState(false);
+  const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -101,9 +117,24 @@ export default function TestPrimeLanding() {
     );
   }, [exams, search]);
 
-  const topExams = filteredExams.slice(0, 3);
+  const topExams = examsExpanded ? filteredExams : filteredExams.slice(0, EXAM_PREVIEW_COUNT);
+  const canExpand = filteredExams.length > EXAM_PREVIEW_COUNT;
   const selectedPlan = plans.find((p) => p.id === selectedPlanId) || plans[plans.length - 1];
   const isPrime = !!ent?.is_prime;
+
+  // Auto-collapse exams when category or search changes
+  useEffect(() => {
+    if (examsExpanded) {
+      LayoutAnimation.configureNext(EXPAND_ANIM);
+      setExamsExpanded(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCat, search]);
+
+  const toggleExamsExpanded = () => {
+    LayoutAnimation.configureNext(EXPAND_ANIM);
+    setExamsExpanded((v) => !v);
+  };
 
   const toggleFaq = (i: number) => {
     setExpandedFaqs((p) => ({ ...p, [i]: !p[i] }));
@@ -266,39 +297,87 @@ export default function TestPrimeLanding() {
           <View style={s.section}>
             <Text style={s.sectionTitle}>Exams</Text>
             <View style={s.card}>
-              {topExams.map((e, idx) => (
-                <Pressable
-                  key={e.id}
-                  testID={`tp-exam-${e.id}`}
-                  onPress={() => router.push(`/test-prime/exam/${e.id}` as any)}
-                  style={[s.examRow, idx < topExams.length - 1 && s.examRowDivider]}
-                >
-                  <View style={[s.examLogo, { backgroundColor: `${e.color}15` }]}>
-                    <Text style={[s.examLogoTxt, { color: e.color }]} numberOfLines={1}>
-                      {e.logo}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <View style={s.langRow}>
-                      {e.languages.slice(0, 2).map((l) => (
-                        <View key={l} style={s.langChip}>
-                          <Text style={s.langChipTxt}>{l}</Text>
-                        </View>
-                      ))}
+              {topExams.map((e, idx) => {
+                const isSelected = selectedExamId === e.id;
+                return (
+                  <Pressable
+                    key={e.id}
+                    testID={`tp-exam-${e.id}`}
+                    onPress={() => {
+                      setSelectedExamId(e.id);
+                      router.push(`/test-prime/exam/${e.id}` as any);
+                    }}
+                    style={[
+                      s.examRow,
+                      idx < topExams.length - 1 && s.examRowDivider,
+                      isSelected && s.examRowSelected,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        s.examLogo,
+                        { backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : `${e.color}15` },
+                      ]}
+                    >
+                      <Text
+                        style={[s.examLogoTxt, { color: isSelected ? '#FFF' : e.color }]}
+                        numberOfLines={1}
+                      >
+                        {e.logo}
+                      </Text>
                     </View>
-                    <Text style={s.examName} numberOfLines={2}>
-                      {e.name} 2026 Mock Test Series
-                    </Text>
-                    <Text style={s.examMeta}>
-                      <Text style={s.examMetaBold}>{e.tests_count} Tests</Text>
-                      <Text style={s.examFree}>  + {e.free_tests} Free Tests</Text>
-                    </Text>
-                  </View>
-                  <View style={s.chevBtn}>
-                    <Ionicons name="chevron-forward" size={16} color="#FFF" />
-                  </View>
-                </Pressable>
-              ))}
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <View style={s.langRow}>
+                        {e.languages.slice(0, 2).map((l) => (
+                          <View
+                            key={l}
+                            style={[
+                              s.langChip,
+                              isSelected && { backgroundColor: 'rgba(255,255,255,0.25)' },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                s.langChipTxt,
+                                isSelected && { color: '#FFF' },
+                              ]}
+                            >
+                              {l}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                      <Text
+                        style={[s.examName, isSelected && { color: '#FFF' }]}
+                        numberOfLines={2}
+                      >
+                        {e.name} 2026 Mock Test Series
+                      </Text>
+                      <Text style={s.examMeta}>
+                        <Text
+                          style={[
+                            s.examMetaBold,
+                            isSelected && { color: 'rgba(255,255,255,0.85)' },
+                          ]}
+                        >
+                          {e.tests_count} Tests
+                        </Text>
+                        <Text
+                          style={[
+                            s.examFree,
+                            isSelected && { color: '#A7F3D0' },
+                          ]}
+                        >
+                          {'  '}+ {e.free_tests} Free Tests
+                        </Text>
+                      </Text>
+                    </View>
+                    <View style={[s.chevBtn, isSelected && { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
+                      <Ionicons name="chevron-forward" size={16} color="#FFF" />
+                    </View>
+                  </Pressable>
+                );
+              })}
               {topExams.length === 0 && (
                 <View style={s.emptyRow}>
                   <MaterialCommunityIcons
@@ -311,13 +390,22 @@ export default function TestPrimeLanding() {
               )}
             </View>
 
-            <Pressable
-              testID="tp-view-all"
-              onPress={() => router.push(`/test-prime/exam/${topExams[0]?.id || 'sbi-po'}` as any)}
-              style={s.viewAllBtn}
-            >
-              <Text style={s.viewAllTxt}>VIEW ALL</Text>
-            </Pressable>
+            {canExpand && (
+              <Pressable
+                testID="tp-view-all"
+                onPress={toggleExamsExpanded}
+                style={s.viewAllBtn}
+              >
+                <Text style={s.viewAllTxt}>
+                  {examsExpanded ? 'VIEW LESS' : `VIEW ALL (${filteredExams.length})`}
+                </Text>
+                <Ionicons
+                  name={examsExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color="#2563EB"
+                />
+              </Pressable>
+            )}
           </View>
 
           {/* ==================== SALIENT FEATURES ==================== */}
@@ -744,6 +832,19 @@ const s = StyleSheet.create({
     paddingVertical: 14,
   },
   examRowDivider: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  examRowSelected: {
+    backgroundColor: '#2563EB',
+    borderBottomColor: 'rgba(255,255,255,0.15)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#2563EB',
+        shadowOpacity: 0.28,
+        shadowOffset: { width: 0, height: 6 },
+        shadowRadius: 12,
+      },
+      android: { elevation: 3 },
+    }),
+  },
   examLogo: {
     width: 48,
     height: 48,
@@ -780,7 +881,10 @@ const s = StyleSheet.create({
     borderColor: '#93C5FD',
     borderRadius: 12,
     paddingVertical: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: '#FFF',
   },
   viewAllTxt: { color: '#2563EB', fontSize: 12.5, fontWeight: '900', letterSpacing: 1 },
