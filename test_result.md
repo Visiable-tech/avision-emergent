@@ -219,3 +219,24 @@ agent_communication:
         3. Frontend: login as test@avision.com / Test@123, verify tabs, Feed nav,
            job-detail nav, live-class tab renders, banner auto-slide, category dropdown
            still filters home content.
+
+  - agent: "main"
+    message: |
+      [Video Courses — Phase 1 complete]
+      Backend: /app/backend/video_courses.py exposes /api/video-courses (list),
+      /categories, /{cid} (detail), /coupons/validate, /{cid}/pay/order, /{cid}/pay/verify,
+      /{cid}/enroll/free, /enrollments/mine, /continue-learning. Router registered in server.py
+      with init_video_courses(db) + ensure_video_courses_indexes.
+      Frontend: rewrote (tabs)/courses.tsx as the Video Courses landing (search, category
+      chips, banner, popular list, sort, FAB). Added video-courses/[id].tsx sales page with
+      hero, stats overlap, features grid, curriculum accordion (subject→chapter→lectures),
+      faculty rail, coupon input+hints, sticky Buy Now bar and Razorpay web checkout wiring.
+      Added video-courses/my.tsx placeholder for enrolled users.
+      Test agent iteration_9: 21/21 backend pytest cases pass; all frontend testIDs verified;
+      no blocking issues. Phase 2 (post-purchase dashboard + player) is NEXT.
+  - agent: "testing"
+    message: |
+      [iteration_9] Video Courses Phase 1 tested end-to-end. Backend 21/21 pass.
+      Frontend flows work: landing → detail → coupon apply → buy now (web Razorpay
+      flow reachable). Regression: /live-class, live-courses, ai-doubt unchanged. Two
+      minor code-review notes are non-blocking.
