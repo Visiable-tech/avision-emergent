@@ -113,6 +113,17 @@ export const api = {
   studyMaterialOpen: (mid: string) => req(`/study-materials/${mid}`, undefined, true),
   // Phase 4 — Course Analytics
   courseAnalytics: (cid: string) => req(`/live-courses/analytics/${cid}`, undefined, true),
+  // Phase 5 — AI Doubt Solver
+  aiCreateThread: (payload: { subject?: string; exam?: string; message?: string; image_base64?: string | null; course_id?: string }) =>
+    req(`/ai-doubt/threads`, { method: 'POST', body: JSON.stringify(payload) }, true),
+  aiListThreads: () => req(`/ai-doubt/threads`, undefined, true),
+  aiThreadDetail: (tid: string) => req(`/ai-doubt/threads/${tid}`, undefined, true),
+  aiSendMessage: (tid: string, message: string, image_base64?: string | null) =>
+    req(`/ai-doubt/threads/${tid}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ message, image_base64: image_base64 || null }),
+    }, true),
+  aiDeleteThread: (tid: string) => req(`/ai-doubt/threads/${tid}`, { method: 'DELETE' }, true),
   examInfo: (category?: string) =>
     req(`/exam-info${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   examInfoDetail: (id: string) => req(`/exam-info/${id}`),

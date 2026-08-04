@@ -1,0 +1,78 @@
+{
+  "summary": "Full backend + frontend regression on Phase 5 AI Doubt Solver. Backend: created /app/backend/tests/test_ai_doubt.py with 14 pytest cases covering thread create (with/without initial, default subject, title derivation), list ordering, detail (image redaction + has_image preservation), non-streaming send (text, multi-turn context, image, 400 on empty), SSE streaming endpoint (content-type, >=3 delta chunks, done event, persistence), delete (cascade + 404), and cross-user isolation. All 14 pass in ~28s. Frontend (mobile viewport 390x844): login -> /ai-doubt lists 4 existing threads correctly with subject icons/pills/timestamps/msg-counts; tapping the 'Reasoning' subject chip creates a new thread and navigates to chat; sending 'What is 15% of 200?' streams a live Claude Sonnet 4.6 reply with proper markdown rendering (headings, bullets, **bold**, 'Final Answer: 30', 'Shortcut / Tip' section); user 'Y' avatar and robot avatar both render; back navigation returns to list. Streaming (SSE) verified end-to-end via httpx client and via UI. One minor UX polish issue: thread title stays 'New doubt' when the first message is sent via /messages instead of at thread creation.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/ai-doubt/threads/{tid}/messages",
+        "issue": "When a thread is created empty (via subject-chip tap) and the FIRST message is later sent via /messages, the thread.title is never updated from its default 'New doubt' to reflect the actual question. Cosmetic — the list card shows 'New doubt' with a preview of the AI reply as last_message, which is confusing next to sibling cards that DO carry a real title. Suggest: in send_message, if thread.message_count == 0 at entry, set title from the incoming user text (same helper as create_thread already uses)."
+      },
+      {
+        "endpoint": "GET /api/ai-doubt/threads/{tid}/stream",
+        "issue": "SSE streaming route is exposed as a plain GET with the message in the query string and JWT in the Authorization header. Works, but (a) the raw prompt is visible in access logs, and (b) if EMERGENT_LLM_KEY is missing the endpoint still returns 200 and yields the config-error line as a delta — consider returning 503 instead."
+      },
+      {
+        "endpoint": "GET /api/ai-doubt/threads",
+        "issue": "list endpoint hard-caps limit to 50 by default and uses caller-supplied `limit` without upper bound clamp (could pass ?limit=100000). Minor DoS surface — clamp to e.g. min(limit, 100)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ai-doubt/index.tsx list card",
+        "issue": "Card title 'New doubt' persists after the user has actually sent a question (see backend note above). Titles should be updated post-first-message for a clean list UX.",
+        "testID": "aid-thread-<id>",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "ai-doubt chat [tid].tsx",
+        "issues": [
+          "Trash icon in header has no testID — for automated e2e tests recommend adding testID='aid-chat-delete' to the delete Pressable (line ~244). Also user avatar (Y) & assistant avatar have no testIDs; suggest testID='aid-msg-{role}-{index}'.",
+          "The MarkdownText renderer does not support blockquote lines starting with '> ' — the Claude reply used '> ...' in the Shortcut/Tip block and it rendered as literal '> ' prefix in plain body text (visible in screenshot). Consider treating leading '> ' as a styled blockquote or stripping it.",
+          "attachBar preview + inputBar together consume ~120px at the bottom; with keyboard open on small phones (iPhone SE) this may cover the last chat bubble. KeyboardAvoidingView is set for iOS only — Android will need a manual offset or set behavior='height'."
+        ]
+      }
+    ],
+    "react_native_issues": [
+      {
+        "component": "props.pointerEvents (repo-wide, not new)",
+        "issue": "Pre-existing RN-Web warning `props.pointerEvents is deprecated. Use style.pointerEvents` — still surfaces on /ai-doubt too. Not introduced by Phase 5."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ai_doubt.py",
+    "/app/test_reports/pytest/pytest_iter7_ai_doubt.xml"
+  ],
+  "action_items": [
+    "(UX) In ai_doubt.send_message, when the current thread has message_count == 0, derive & update thread.title from the incoming user text (mirroring create_thread). Prevents 'New doubt' from lingering.",
+    "(A11y/testability) Add testIDs to the chat header delete Pressable (`aid-chat-delete`), the attach preview close button, and each message row (`aid-msg-{role}-{i}`) so automated e2e can exercise the destructive flow deterministically.",
+    "(Markdown) Extend MarkdownText in /app/frontend/app/ai-doubt/[tid].tsx to handle blockquote (`> `) lines — Claude regularly emits them for tips.",
+    "(Security polish) Return 503 instead of 200-with-error-delta when EMERGENT_LLM_KEY is missing; and clamp `limit` on GET /api/ai-doubt/threads to a max of e.g. 100.",
+    "(Optional) Consider hitting the stream endpoint via POST with body instead of GET+query so long prompts / images don't blow the URL length budget or leak into access logs."
+  ],
+  "critical_code_review_comments": [
+    "ai_doubt.py: multi-turn context is emulated by manually prepending the last 10 turns as plain text (`Previous conversation:\\n...`) rather than passing them as real chat turns. It works but doubles token usage on every send and defeats the LlmChat.session_id-based history. Consider populating chat via a per-session cache keyed on thread.id, or send the last N as UserMessage/AssistantMessage entries.",
+    "ai_doubt._ai_reply falls back to `f\"AI error: {e}\"` and persists that as the assistant message — meaning transient upstream failures become permanent DB rows. Prefer NOT persisting on error and returning a 502 to the client so the frontend can retry.",
+    "The SSE `gen()` handler catches Exception once but still proceeds to persist the collected (possibly empty) reply — this yields a phantom `assistant_message` with 'Sorry, I could not process that.' content and bumps message_count by 2 even when the model errored before emitting a single delta. Consider skipping persistence if `collected` is empty.",
+    "image_base64 payloads are stored on ai_messages docs (not just used transiently). For a mid-size (200KB) student photo × many threads this bloats the collection and, more importantly, gets returned in `send_message` responses (only later redacted on GET). Consider persisting to GridFS or S3 and storing only a URL.",
+    "Router uses `body: dict` instead of Pydantic models — no validation of subject enum, no length caps on `message`, no size cap on image_base64. Add a `CreateThreadIn` / `SendMessageIn` BaseModel with maxLength/validators.",
+    "MongoDB ObjectId hygiene is correct — projections `{'_id': 0}` and `_clean()` helper used everywhere. Good.",
+    "Cross-user isolation is enforced correctly via `_get_thread(tid, user_id)` filtering on both fields. 404 for foreign threads is correct behavior (avoids revealing existence).",
+    "The `_title_from` helper is `async` but does no I/O — could be sync. Minor.",
+    "ai_doubt.py at 380 lines is fine. server.py has grown to ~490 lines with all wiring — still OK but approaching the 700-line split threshold."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ai_doubt.py (NEW — 14 tests, all passing)"
+  ],
+  "success_rate": {"backend": "100% (14/14 passed)", "frontend": "100% of critical flows verified (list, subject-chip create, streaming send, markdown render, back nav, avatars). Delete-alert UI flow not verified because RN Alert.alert renders as an in-app Modal (not a browser dialog) — API-level delete already covered by backend test."},
+  "seed_data_creation": "None. Registered a temporary secondary user (qa+aid+<uuid>@avision.in) for cross-user isolation tests — thread objects are self-cleaned inside the tests via DELETE. Existing test@avision.com / Test@123 was used for all other tests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "1) Login POST returns `access_token` (not `token`) — use `j.get('access_token')`. 2) /api/auth/register REQUIRES a `phone` field (422 without it). 3) pytest.ini forces `-n 2 --dist loadscope`; for AI Doubt tests you MUST run with `-n 0` because they share a module-scoped token and per-thread state. 4) Emergent LLM key is live and Claude Sonnet 4.6 responds in ~4-8s for short quant questions and ~10-15s for image OCR — set httpx timeouts accordingly (I used 60-120s). 5) Stream endpoint returns `data: {\"done\": true, \"message_id\": \"...\"}\\n\\n` as the terminal frame; message_id matches the persisted assistant doc. 6) Image bytes are echoed back in POST /messages response (user_message.image_base64 is redacted) but ARE stored server-side; GET /threads/{tid} strips them. 7) The frontend token in localStorage key is not `avision_token` — check `/app/frontend/src/tokenStore.ts` if you need direct fetch from the browser context. 8) MarkdownText does not render blockquote lines — see design_issues.",
+  "rca_of_issue": "N/A — no functional bugs. All API contracts and streaming semantics behave exactly as specified. Minor UX / hardening notes captured in action_items."
+}

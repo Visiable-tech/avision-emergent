@@ -10,7 +10,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.avisionstudydash.qov8ss"
+      "bundleIdentifier": "com.emergent.avisionstudydash.qov8ss",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Attach a photo of a question to your AI doubt.",
+        "NSCameraUsageDescription": "Take a photo of a question to send to your AI tutor."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +22,8 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.avisionstudydash.qov8ss"
+      "package": "com.emergent.avisionstudydash.qov8ss",
+      "permissions": ["android.permission.READ_MEDIA_IMAGES", "android.permission.READ_EXTERNAL_STORAGE"]
     },
     "web": {
       "bundler": "metro",

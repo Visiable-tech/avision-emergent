@@ -263,7 +263,7 @@ export default function LiveClassroom() {
             <ActionBtn
               icon="megaphone-outline"
               label="Ask Doubt"
-              onPress={() => {}}
+              onPress={() => router.push('/ai-doubt')}
               testID="cls-doubt"
             />
           )}
