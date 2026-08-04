@@ -197,8 +197,24 @@ def make_router(courses_provider, category_check=None):
         user_id = f"user_{uuid.uuid4().hex[:12]}"
         referral_code = _generate_referral_code(data.name)
         now = datetime.now(timezone.utc)
+        # AVISION ONE: attach avision_id + roles + default attribution
+        try:
+            from foundation import _gen_avision_id, ADMIN_EMAILS_SEED
+            avision_id = await _gen_avision_id()
+            roles = ["student"]
+            if email in ADMIN_EMAILS_SEED:
+                roles.append("admin")
+        except Exception:
+            avision_id = None
+            roles = ["student"]
         doc = {
             "user_id": user_id,
+            "avision_id": avision_id,
+            "roles": roles,
+            "centre_id": None,
+            "admission_source": "app_online",
+            "counsellor_id": None,
+            "active": True,
             "name": data.name.strip(),
             "email": email,
             "password_hash": hash_password(data.password),

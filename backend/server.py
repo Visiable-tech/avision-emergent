@@ -67,6 +67,17 @@ from video_courses import (
     ensure_video_courses_indexes,
     router as video_courses_router,
 )
+from foundation import (
+    init_foundation,
+    ensure_foundation_indexes,
+    backfill_users,
+    seed_products,
+    seed_faculty,
+    seed_coupons,
+    backfill_entitlements,
+    router as foundation_router,
+    admin_router as foundation_admin_router,
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -95,6 +106,7 @@ init_live_classroom(db)
 init_study_materials(db)
 init_ai_doubt(db)
 init_video_courses(db)
+init_foundation(db)
 
 
 def _get_courses():
@@ -117,6 +129,8 @@ app.include_router(live_classroom_router)
 app.include_router(study_materials_router)
 app.include_router(ai_doubt_router)
 app.include_router(video_courses_router)
+app.include_router(foundation_router)
+app.include_router(foundation_admin_router)
 
 
 @app.on_event("startup")
@@ -133,6 +147,13 @@ async def _startup():
     await seed_all_materials()
     await ensure_ai_doubt_indexes(db)
     await ensure_video_courses_indexes(db)
+    # ---- AVISION ONE Foundation ----
+    await ensure_foundation_indexes(db)
+    await backfill_users()
+    await seed_products()
+    await seed_faculty()
+    await seed_coupons()
+    await backfill_entitlements()
 
 
 # ---------------- Models ----------------
