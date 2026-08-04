@@ -22,14 +22,19 @@ export default function CourseDashboard() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
+  const [realSessions, setRealSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const d = await api.liveCourseDashboard(id);
+      const [d, ss] = await Promise.all([
+        api.liveCourseDashboard(id),
+        api.lcSessions(id).catch(() => ({ sessions: [] })),
+      ]);
       setData(d);
+      setRealSessions(ss.sessions || []);
     } catch (e: any) {
       console.warn('dashboard', e?.message);
     } finally {
@@ -115,7 +120,39 @@ export default function CourseDashboard() {
       >
         {/* Next Action card — overlaps hero */}
         <View style={s.nextWrap}>
-          <NextActionCard action={next_action} onPress={() => next_action?.cta_route && router.push(next_action.cta_route)} />
+          {(() => {
+            const liveNow = realSessions.find((r) => r.status === 'live');
+            const nextUp = realSessions.find((r) => r.status === 'upcoming');
+            const action = liveNow
+              ? {
+                  type: 'live_now',
+                  title: `🔴 LIVE: ${liveNow.subject}`,
+                  subtitle: `${liveNow.faculty_name} • ${liveNow.topic}`,
+                  cta_label: 'Join Live',
+                  cta_route: `/live-classroom/${liveNow.session_id}`,
+                  accent: '#EF4444',
+                  meta: `Live now • Don't miss it`,
+                }
+              : nextUp
+              ? {
+                  type: 'live_upcoming',
+                  title: `Next: ${nextUp.subject}`,
+                  subtitle: `${nextUp.faculty_name} • ${nextUp.topic}`,
+                  cta_label: 'Enter Room',
+                  cta_route: `/live-classroom/${nextUp.session_id}`,
+                  accent: theme.colors.brand,
+                  meta:
+                    typeof nextUp.starts_in_min === 'number'
+                      ? nextUp.starts_in_min < 60
+                        ? `Starts in ${nextUp.starts_in_min} min`
+                        : `Starts in ${Math.floor(nextUp.starts_in_min / 60)}h ${nextUp.starts_in_min % 60}m`
+                      : 'Upcoming',
+                }
+              : next_action;
+            return (
+              <NextActionCard action={action} onPress={() => action?.cta_route && router.push(action.cta_route)} />
+            );
+          })()}
         </View>
 
         {/* Today's Target */}
@@ -135,23 +172,63 @@ export default function CourseDashboard() {
 
         {/* Quick tiles */}
         <View style={s.quickWrap}>
-          <QuickTile icon="videocam" color="#EF4444" label="Live" onPress={() => {}} testID="quick-live" />
-          <QuickTile icon="play-circle" color="#0B4DB8" label="Recordings" onPress={() => {}} testID="quick-recordings" />
+          <QuickTile
+            icon="videocam"
+            color="#EF4444"
+            label="Live"
+            onPress={() => {
+              const live = realSessions.find((r) => r.status === 'live');
+              const target = live || realSessions.find((r) => r.status === 'upcoming');
+              if (target) router.push(`/live-classroom/${target.session_id}`);
+            }}
+            testID="quick-live"
+          />
+          <QuickTile
+            icon="play-circle"
+            color="#0B4DB8"
+            label="Recordings"
+            onPress={() => {
+              const rec = realSessions.find((r) => r.status === 'recorded' || r.type === 'recorded');
+              if (rec) router.push(`/live-classroom/${rec.session_id}`);
+            }}
+            testID="quick-recordings"
+          />
           <QuickTile icon="document-text" color="#7C3AED" label="Notes" onPress={() => {}} testID="quick-notes" />
           <QuickTile icon="clipboard" color="#059669" label="Tests" onPress={() => router.push('/test-prime')} testID="quick-tests" />
           <QuickTile icon="help-circle" color="#F59E0B" label="Doubts" onPress={() => {}} testID="quick-doubts" />
           <QuickTile icon="stats-chart" color="#0891B2" label="Progress" onPress={() => {}} testID="quick-progress" />
         </View>
 
-        {/* Today's Schedule */}
+        {/* Today's Schedule — uses real sessions when available */}
         <View style={s.card}>
           <View style={s.cardHead}>
             <Text style={s.cardTitle}>Today&apos;s Schedule</Text>
-            <Text style={s.cardSub}>{today_schedule.length} sessions</Text>
+            <Text style={s.cardSub}>
+              {(realSessions.length > 0 ? realSessions : today_schedule).length} sessions
+            </Text>
           </View>
           <View style={{ marginTop: 10, gap: 10 }}>
-            {today_schedule.map((sess: any) => (
-              <SessionRow key={sess.id} sess={sess} onPress={() => router.push(`/live-courses/session/${sess.id}`)} />
+            {(realSessions.length > 0
+              ? realSessions.map((r) => ({
+                  id: r.session_id,
+                  subject: r.subject,
+                  topic: r.topic,
+                  faculty_name: r.faculty_name,
+                  status: r.status,
+                  time_short: `${new Date(r.starts_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} • ${r.duration_min}m`,
+                  is_real: true,
+                }))
+              : today_schedule
+            ).map((sess: any) => (
+              <SessionRow
+                key={sess.id}
+                sess={sess}
+                onPress={() =>
+                  sess.is_real
+                    ? router.push(`/live-classroom/${sess.id}`)
+                    : router.push(`/live-courses/session/${sess.id}`)
+                }
+              />
             ))}
           </View>
         </View>

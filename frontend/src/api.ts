@@ -77,6 +77,28 @@ export const api = {
       body: JSON.stringify(patch),
     }, true),
   liveCourseSession: (sid: string) => req(`/live-courses/session/${sid}`, undefined, true),
+  // Phase 3 — Live Classroom (real sessions + WebSocket)
+  lcSessions: (courseId: string) =>
+    req(`/live-classroom/sessions?course_id=${encodeURIComponent(courseId)}`, undefined, true),
+  lcSession: (sid: string) => req(`/live-classroom/sessions/${sid}`, undefined, true),
+  lcChat: (sid: string, limit = 100) =>
+    req(`/live-classroom/sessions/${sid}/chat?limit=${limit}`, undefined, true),
+  lcToggleHandRaise: (sid: string) =>
+    req(`/live-classroom/sessions/${sid}/hand-raise`, { method: 'POST' }, true),
+  lcHandRaises: (sid: string) =>
+    req(`/live-classroom/sessions/${sid}/hand-raises`, undefined, true),
+  lcCreatePoll: (sid: string, question: string, options: string[]) =>
+    req(`/live-classroom/sessions/${sid}/polls`, {
+      method: 'POST',
+      body: JSON.stringify({ question, options }),
+    }, true),
+  lcVotePoll: (pid: string, option_id: string) =>
+    req(`/live-classroom/polls/${pid}/vote`, {
+      method: 'POST',
+      body: JSON.stringify({ option_id }),
+    }, true),
+  lcClosePoll: (pid: string) =>
+    req(`/live-classroom/polls/${pid}/close`, { method: 'POST' }, true),
   examInfo: (category?: string) =>
     req(`/exam-info${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   examInfoDetail: (id: string) => req(`/exam-info/${id}`),

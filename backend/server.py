@@ -45,6 +45,12 @@ from live_courses import (
     ensure_live_courses_indexes,
     router as live_courses_router,
 )
+from live_classroom import (
+    init_live_classroom,
+    ensure_live_classroom_indexes,
+    seed_all_sessions,
+    router as live_classroom_router,
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -69,6 +75,7 @@ init_feed(db)
 init_test_prime(db)
 init_magazine_booster(db)
 init_live_courses(db)
+init_live_classroom(db)
 
 
 def _get_courses():
@@ -87,6 +94,7 @@ app.include_router(exam_info_router)
 app.include_router(test_prime_router)
 app.include_router(magazine_booster_router)
 app.include_router(live_courses_router)
+app.include_router(live_classroom_router)
 
 
 @app.on_event("startup")
@@ -97,6 +105,8 @@ async def _startup():
     await ensure_feed_indexes(db)
     await ensure_test_prime_indexes(db)
     await ensure_live_courses_indexes(db)
+    await ensure_live_classroom_indexes(db)
+    await seed_all_sessions()
 
 
 # ---------------- Models ----------------
