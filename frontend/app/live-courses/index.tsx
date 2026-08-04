@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,17 +7,23 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
+  TextInput,
   Platform,
   StatusBar as RNStatusBar,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { theme } from '@/src/theme';
 import { api } from '@/src/api';
 import { useCategory } from '@/src/CategoryContext';
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const BANNER_PAD_X = 16;
+const BANNER_W = SCREEN_W - BANNER_PAD_X * 2;
 
 type CourseCard = {
   id: string;
@@ -44,213 +50,278 @@ type CourseCard = {
   faculty_names: string[];
 };
 
-type ExamChip = { id: string; name: string; category_id?: string; count: number };
+/**
+ * Category tiles shown in the "Target Exam Categories" row.
+ * IDs here must match the seed `category_id` values on the backend
+ * (`banking`, `ssc`, `railway`, `state-exams`, `teaching`, `upsc`, …).
+ */
+const CATEGORY_TILES = [
+  { id: 'banking', name: 'Banking', icon: 'business', lib: 'ion' as const },
+  { id: 'ssc', name: 'SSC', icon: 'school-outline', lib: 'ion' as const },
+  { id: 'railway', name: 'Railway', icon: 'train', lib: 'mci' as const },
+  { id: 'state-exams', name: 'State Exams', icon: 'map-outline', lib: 'ion' as const },
+  { id: 'upsc', name: 'UPSC', icon: 'book-outline', lib: 'ion' as const },
+  { id: 'teaching', name: 'Teaching', icon: 'pencil-outline', lib: 'ion' as const },
+] as const;
 
-const SORTS: { id: string; label: string }[] = [
-  { id: 'popular', label: 'Popular' },
-  { id: 'price_low', label: 'Price: Low → High' },
-  { id: 'price_high', label: 'Price: High → Low' },
-  { id: 'start_date', label: 'Starting Soon' },
-];
+const PROMO_BANNERS = [
+  {
+    id: 'b1',
+    label: 'Course Highlights',
+    title: 'Dynamic Course &\nCourse Highlights',
+    cta: 'Learn More',
+    tag: 'By Success Compass',
+    gradient: ['#0B4DB8', '#1D4ED8'],
+    image: 'https://images.unsplash.com/photo-1571260899304-425eee4c7efc?w=800&q=80',
+  },
+  {
+    id: 'b2',
+    label: 'Live Batches 2026',
+    title: 'IBPS PO Prime\nStarts Jul 20',
+    cta: 'Enroll Now',
+    tag: 'Bilingual • Hi + En',
+    gradient: ['#7C3AED', '#5B21B6'],
+    image: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&q=80',
+  },
+  {
+    id: 'b3',
+    label: 'Limited Offer',
+    title: 'SBI PO Booster\n50% OFF Today',
+    cta: 'Grab Offer',
+    tag: 'Ends this Sunday',
+    gradient: ['#059669', '#064E3B'],
+    image: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=800&q=80',
+  },
+  {
+    id: 'b4',
+    label: 'Free Demo',
+    title: 'Attend a Free\nDemo Class',
+    cta: 'Watch Now',
+    tag: 'Top Faculty',
+    gradient: ['#DB2777', '#831843'],
+    image: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&q=80',
+  },
+] as const;
 
 export default function LiveCoursesCatalog() {
   const router = useRouter();
   const { categoryId } = useCategory();
 
   const [courses, setCourses] = useState<CourseCard[]>([]);
-  const [exams, setExams] = useState<ExamChip[]>([]);
-  const [languages, setLanguages] = useState<string[]>([]);
-  const [selectedExam, setSelectedExam] = useState<string | null>(null);
-  const [selectedLang, setSelectedLang] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState('popular');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showSort, setShowSort] = useState(false);
+  const [query, setQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [bannerIdx, setBannerIdx] = useState(0);
 
-  const loadFilters = useCallback(async () => {
-    try {
-      const f = await api.liveCourseFilters();
-      setExams(f.exams || []);
-      setLanguages(f.languages || []);
-    } catch (e) {
-      console.warn('filters', e);
-    }
-  }, []);
+  const bannerRef = useRef<ScrollView>(null);
 
-  const loadCourses = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
-      const opts: any = { sort: sortBy };
-      if (categoryId) opts.category = categoryId;
-      if (selectedExam) opts.exam = selectedExam;
-      if (selectedLang) opts.language = selectedLang;
+      const opts: any = {};
+      if (selectedCategory) opts.category = selectedCategory;
+      else if (categoryId) opts.category = categoryId;
       const r = await api.liveCourses(opts);
       setCourses(r.courses || []);
     } catch (e) {
       console.warn('live-courses', e);
-    }
-  }, [categoryId, selectedExam, selectedLang, sortBy]);
-
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await Promise.all([loadFilters(), loadCourses()]);
+    } finally {
       setLoading(false);
-    })();
-  }, [loadFilters, loadCourses]);
+      setRefreshing(false);
+    }
+  }, [categoryId, selectedCategory]);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await Promise.all([loadFilters(), loadCourses()]);
-    setRefreshing(false);
-  }, [loadFilters, loadCourses]);
+  useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
 
-  const filteredExams = useMemo(() => {
-    if (!categoryId) return exams;
-    return exams.filter((e) => !e.category_id || e.category_id === categoryId);
-  }, [exams, categoryId]);
+  const filteredCourses = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return courses;
+    return courses.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.exam_name.toLowerCase().includes(q) ||
+        (c.faculty_names || []).some((n) => n.toLowerCase().includes(q)),
+    );
+  }, [courses, query]);
+
+  const onBannerScroll = (e: any) => {
+    const x = e.nativeEvent.contentOffset.x;
+    const idx = Math.round(x / (BANNER_W + 12));
+    if (idx !== bannerIdx) setBannerIdx(idx);
+  };
 
   return (
     <View style={s.root}>
       <Stack.Screen options={{ headerShown: false }} />
-      {/* Header */}
-      <LinearGradient colors={[theme.colors.brand, theme.colors.brandDark]} style={s.header}>
-        <SafeAreaView edges={['top']}>
-          <View style={s.headerRow}>
-            <Pressable onPress={() => router.back()} hitSlop={10} style={s.iconBtn} testID="lc-back">
-              <Ionicons name="chevron-back" size={22} color="#FFF" />
-            </Pressable>
-            <View style={{ flex: 1 }}>
-              <Text style={s.headerTitle}>Live Courses</Text>
-              <Text style={s.headerSub}>{`Learn from India's top faculty • Live + Recordings`}</Text>
-            </View>
-            <Pressable
-              onPress={() => router.push('/live-courses/my-courses')}
-              style={s.myBtn}
-              testID="lc-my-courses"
-            >
-              <Ionicons name="bookmark" size={14} color="#FFF" />
-              <Text style={s.myBtnTxt}>My Courses</Text>
-            </Pressable>
-          </View>
+      <SafeAreaView edges={['top']} style={s.topSafe}>
+        {/* Header */}
+        <View style={s.header}>
+          <Text style={s.headerTitle}>Live Courses</Text>
+          <Pressable style={s.bellBtn} onPress={() => {}} hitSlop={10} testID="lc-notifications">
+            <Ionicons name="notifications-outline" size={22} color={theme.colors.onSurface} />
+            <View style={s.bellDot} />
+          </Pressable>
+        </View>
 
-          {/* Filters row */}
-          <View style={s.filterRow}>
-            <Pressable
-              style={[s.filterChip, !selectedExam && s.filterChipActive]}
-              onPress={() => setSelectedExam(null)}
-              testID="lc-exam-all"
-            >
-              <Text style={[s.filterChipTxt, !selectedExam && s.filterChipTxtActive]}>All Exams</Text>
+        {/* Search bar */}
+        <View style={s.searchWrap}>
+          <Ionicons name="search" size={18} color={theme.colors.muted} />
+          <TextInput
+            style={s.searchInput}
+            placeholder="Search course, exam, category"
+            placeholderTextColor={theme.colors.muted}
+            value={query}
+            onChangeText={setQuery}
+            returnKeyType="search"
+            testID="lc-search"
+          />
+          {query ? (
+            <Pressable onPress={() => setQuery('')} hitSlop={10}>
+              <Ionicons name="close-circle" size={16} color={theme.colors.mutedLight} />
             </Pressable>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8, paddingRight: 16 }}
-              style={{ flex: 1 }}
-            >
-              {filteredExams.map((e) => (
-                <Pressable
-                  key={e.id}
-                  style={[s.filterChip, selectedExam === e.id && s.filterChipActive]}
-                  onPress={() => setSelectedExam(selectedExam === e.id ? null : e.id)}
-                  testID={`lc-exam-${e.id}`}
-                >
-                  <Text style={[s.filterChipTxt, selectedExam === e.id && s.filterChipTxtActive]}>
-                    {e.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
+          ) : null}
+        </View>
+      </SafeAreaView>
 
-      {/* Sub-toolbar */}
-      <View style={s.subBar}>
-        <Text style={s.resultTxt}>
-          <Text style={s.resultCount}>{courses.length}</Text> {courses.length === 1 ? 'course' : 'courses'}
-        </Text>
-        <View style={{ flex: 1 }} />
-        {languages.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-            {languages.map((lg) => (
-              <Pressable
-                key={lg}
-                onPress={() => setSelectedLang(selectedLang === lg ? null : lg)}
-                style={[s.langChip, selectedLang === lg && s.langChipActive]}
-                testID={`lc-lang-${lg}`}
-              >
-                <Text style={[s.langChipTxt, selectedLang === lg && { color: '#FFF' }]}>{lg}</Text>
-              </Pressable>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 140 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); load(); }}
+            tintColor={theme.colors.brand}
+          />
+        }
+      >
+        {/* Banner carousel */}
+        <View style={{ paddingTop: 12 }}>
+          <ScrollView
+            ref={bannerRef}
+            horizontal
+            pagingEnabled={false}
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={BANNER_W + 12}
+            decelerationRate="fast"
+            contentContainerStyle={{ paddingHorizontal: BANNER_PAD_X, gap: 12 }}
+            onScroll={onBannerScroll}
+            scrollEventThrottle={16}
+          >
+            {PROMO_BANNERS.map((b) => (
+              <PromoBanner
+                key={b.id}
+                banner={b}
+                onPress={() => {
+                  if (b.id === 'b2') router.push('/live-courses/lc-banking-po-2026');
+                  else if (b.id === 'b3') router.push('/live-courses/lc-sbi-po-2026');
+                  else if (b.id === 'b4') router.push('/live-courses');
+                }}
+              />
             ))}
           </ScrollView>
-        )}
-        <Pressable onPress={() => setShowSort((v) => !v)} style={s.sortBtn} testID="lc-sort">
-          <Ionicons name="swap-vertical" size={14} color={theme.colors.brand} />
-          <Text style={s.sortBtnTxt} numberOfLines={1}>
-            {SORTS.find((x) => x.id === sortBy)?.label}
-          </Text>
-        </Pressable>
-      </View>
-
-      {showSort && (
-        <View style={s.sortMenu}>
-          {SORTS.map((so) => (
-            <Pressable
-              key={so.id}
-              onPress={() => {
-                setSortBy(so.id);
-                setShowSort(false);
-              }}
-              style={[s.sortItem, sortBy === so.id && s.sortItemActive]}
-              testID={`lc-sort-${so.id}`}
-            >
-              <Ionicons
-                name={sortBy === so.id ? 'radio-button-on' : 'radio-button-off'}
-                size={16}
-                color={sortBy === so.id ? theme.colors.brand : theme.colors.muted}
-              />
-              <Text style={[s.sortItemTxt, sortBy === so.id && { color: theme.colors.brand, fontWeight: '800' }]}>
-                {so.label}
-              </Text>
-            </Pressable>
-          ))}
+          {/* Dots */}
+          <View style={s.dots}>
+            {PROMO_BANNERS.map((_, i) => (
+              <View key={i} style={[s.dot, i === bannerIdx && s.dotActive]} />
+            ))}
+          </View>
         </View>
-      )}
 
-      {loading ? (
-        <View style={s.loading}>
-          <ActivityIndicator color={theme.colors.brand} />
+        {/* Target Exam Categories */}
+        <View style={s.sectionRow}>
+          <Text style={s.sectionTitle}>Target Exam Categories</Text>
+          <Pressable onPress={() => setSelectedCategory(null)} hitSlop={10} testID="lc-cat-seeall">
+            <Text style={s.seeAll}>See All</Text>
+          </Pressable>
         </View>
-      ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 14 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.brand} />
-          }
-          showsVerticalScrollIndicator={false}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
         >
-          {courses.length === 0 ? (
+          {CATEGORY_TILES.map((c) => {
+            const active = selectedCategory === c.id;
+            return (
+              <Pressable
+                key={c.id}
+                onPress={() => setSelectedCategory(active ? null : c.id)}
+                style={[s.catTile, active && s.catTileActive]}
+                testID={`lc-cat-${c.id}`}
+              >
+                <View style={[s.catIconBox, active && { backgroundColor: '#FFF' }]}>
+                  {c.lib === 'mci' ? (
+                    <MaterialCommunityIcons name={c.icon as any} size={22} color={active ? theme.colors.brand : theme.colors.brand} />
+                  ) : (
+                    <Ionicons name={c.icon as any} size={22} color={active ? theme.colors.brand : theme.colors.brand} />
+                  )}
+                </View>
+                <Text style={[s.catLbl, active && { color: '#FFF' }]}>{c.name}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {/* Courses */}
+        <View style={{ marginTop: 18, paddingHorizontal: 16, gap: 14 }}>
+          {loading ? (
+            <View style={{ alignItems: 'center', paddingTop: 30 }}>
+              <ActivityIndicator color={theme.colors.brand} />
+            </View>
+          ) : filteredCourses.length === 0 ? (
             <View style={s.empty}>
               <Ionicons name="school-outline" size={44} color={theme.colors.mutedLight} />
               <Text style={s.emptyTitle}>No courses found</Text>
-              <Text style={s.emptySub}>Try clearing filters or a different exam.</Text>
+              <Text style={s.emptySub}>Try a different search term or category.</Text>
               <Pressable
-                onPress={() => {
-                  setSelectedExam(null);
-                  setSelectedLang(null);
-                }}
                 style={s.clearBtn}
+                onPress={() => { setQuery(''); setSelectedCategory(null); }}
               >
-                <Text style={s.clearBtnTxt}>Clear Filters</Text>
+                <Text style={s.clearBtnTxt}>Reset filters</Text>
               </Pressable>
             </View>
           ) : (
-            courses.map((c) => <CourseCardView key={c.id} c={c} onPress={() => router.push(`/live-courses/${c.id}`)} />)
+            filteredCourses.map((c) => (
+              <CourseCardView key={c.id} c={c} onPress={() => router.push(`/live-courses/${c.id}`)} />
+            ))
           )}
-        </ScrollView>
-      )}
+        </View>
+      </ScrollView>
+
+      {/* Floating My Courses shortcut */}
+      <Pressable
+        style={s.fab}
+        onPress={() => router.push('/live-courses/my-courses')}
+        testID="lc-my-courses"
+      >
+        <Ionicons name="bookmark" size={16} color="#FFF" />
+        <Text style={s.fabTxt}>My Courses</Text>
+      </Pressable>
     </View>
+  );
+}
+
+/* ------------------------- Sub-components ------------------------- */
+
+function PromoBanner({ banner, onPress }: { banner: (typeof PROMO_BANNERS)[number]; onPress: () => void }) {
+  return (
+    <Pressable style={[s.banner, { width: BANNER_W }]} onPress={onPress} testID={`lc-banner-${banner.id}`}>
+      <LinearGradient colors={banner.gradient as any} style={StyleSheet.absoluteFillObject} />
+      <View style={s.bannerRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.bannerLbl}>{banner.label}</Text>
+          <Text style={s.bannerTitle}>{banner.title}</Text>
+          <View style={s.bannerCta}>
+            <Text style={s.bannerCtaTxt}>{banner.cta}</Text>
+          </View>
+        </View>
+        <View style={s.bannerRight}>
+          <Image source={{ uri: banner.image }} style={s.bannerImg} contentFit="cover" />
+          <View style={s.bannerTag}>
+            <Text style={s.bannerTagTxt}>{banner.tag}</Text>
+          </View>
+        </View>
+      </View>
+    </Pressable>
   );
 }
 
@@ -258,36 +329,30 @@ function CourseCardView({ c, onPress }: { c: CourseCard; onPress: () => void }) 
   return (
     <Pressable onPress={onPress} style={s.card} testID={`lc-card-${c.id}`}>
       {/* Banner */}
-      <View style={s.banner}>
+      <View style={s.cardBanner}>
         <Image source={{ uri: c.banner_image }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
         <LinearGradient
           colors={[c.gradient?.[0] || theme.colors.brand, c.gradient?.[1] || theme.colors.brandDark]}
-          style={[StyleSheet.absoluteFillObject, { opacity: 0.85 }]}
+          style={[StyleSheet.absoluteFillObject, { opacity: 0.9 }]}
         />
-        <View style={s.bannerBody}>
-          <View style={s.chipRow}>
-            <View style={s.liveBadge}>
-              <View style={s.pulse} />
-              <Text style={s.liveTxt}>LIVE</Text>
-            </View>
-            {c.discount_pct > 0 && (
-              <View style={[s.discChip, { backgroundColor: c.accent || '#F59E0B' }]}>
-                <Text style={s.discTxt}>{c.discount_pct}% OFF</Text>
-              </View>
-            )}
-            {c.batch_label ? (
-              <View style={s.batchLabelChip}>
-                <Text style={s.batchLabelTxt}>{c.batch_label}</Text>
-              </View>
-            ) : null}
+        <View style={s.chipRow}>
+          <View style={s.liveBadge}>
+            <View style={s.pulse} />
+            <Text style={s.liveTxt}>LIVE</Text>
           </View>
-          <Text style={s.courseName} numberOfLines={2}>
-            {c.name}
-          </Text>
-          <Text style={s.examName} numberOfLines={1}>
-            {c.exam_name}
-          </Text>
+          {c.discount_pct > 0 && (
+            <View style={[s.discChip, { backgroundColor: c.accent || '#F59E0B' }]}>
+              <Text style={s.discTxt}>{c.discount_pct}% OFF</Text>
+            </View>
+          )}
+          {c.batch_label ? (
+            <View style={s.batchLabelChip}>
+              <Text style={s.batchLabelTxt}>{c.batch_label}</Text>
+            </View>
+          ) : null}
         </View>
+        <Text style={s.courseName} numberOfLines={2}>{c.name}</Text>
+        <Text style={s.examName} numberOfLines={1}>{c.exam_name}</Text>
       </View>
 
       {/* Body */}
@@ -319,16 +384,13 @@ function CourseCardView({ c, onPress }: { c: CourseCard; onPress: () => void }) 
           </View>
         </View>
 
-        {/* Price + CTA */}
         <View style={s.priceRow}>
           <View style={{ flex: 1 }}>
             <Text style={s.priceStrike}>₹{c.price.toLocaleString('en-IN')}</Text>
             <View style={s.priceLine}>
               <Text style={s.priceMain}>₹{c.offer_price.toLocaleString('en-IN')}</Text>
               {c.is_limited_offer && c.offer_valid_till ? (
-                <Text style={s.offerTxt} numberOfLines={1}>
-                  • {c.offer_valid_till}
-                </Text>
+                <Text style={s.offerTxt} numberOfLines={1}>• {c.offer_valid_till}</Text>
               ) : null}
             </View>
           </View>
@@ -354,106 +416,110 @@ function StatChip({ icon, val, lbl }: { icon: any; val: string; lbl: string }) {
   );
 }
 
+/* -------------------------- Styles ---------------------------- */
+
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.colors.surfaceSecondary },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  header: {
-    paddingHorizontal: 16,
-    paddingBottom: 14,
+  root: { flex: 1, backgroundColor: theme.colors.surface },
+  topSafe: {
     paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 0) : 0,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 6, paddingBottom: 12 },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.16)',
-  },
-  headerTitle: { color: '#FFF', fontSize: 20, fontWeight: '900' },
-  headerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 11.5, fontWeight: '600', marginTop: 2 },
-  myBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-  myBtnTxt: { color: '#FFF', fontSize: 11.5, fontWeight: '800' },
-  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  filterChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
-  },
-  filterChipActive: { backgroundColor: '#FFF', borderColor: '#FFF' },
-  filterChipTxt: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  filterChipTxtActive: { color: theme.colors.brand },
-  subBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
     backgroundColor: theme.colors.surface,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
   },
-  resultTxt: { fontSize: 12, color: theme.colors.muted, fontWeight: '700' },
-  resultCount: { color: theme.colors.brand, fontWeight: '900' },
-  langChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: theme.colors.surfaceSecondary,
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
+  headerTitle: { flex: 1, fontSize: 26, fontWeight: '900', color: theme.colors.onSurface, letterSpacing: -0.4 },
+  bellBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  langChipActive: { backgroundColor: theme.colors.brand, borderColor: theme.colors.brand },
-  langChipTxt: { fontSize: 11, fontWeight: '700', color: theme.colors.onSurfaceSecondary },
-  sortBtn: {
+  bellDot: {
+    position: 'absolute',
+    top: 10,
+    right: 12,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.error,
+    borderWidth: 1.5,
+    borderColor: theme.colors.surface,
+  },
+  searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: theme.colors.brandTertiary,
-    maxWidth: 160,
-  },
-  sortBtnTxt: { fontSize: 11.5, fontWeight: '800', color: theme.colors.brand },
-  sortMenu: {
-    backgroundColor: theme.colors.surface,
+    gap: 8,
     marginHorizontal: 16,
-    marginTop: 6,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    height: 44,
     borderRadius: 14,
-    padding: 4,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    ...(theme.shadow.soft as object),
+    backgroundColor: theme.colors.surface,
   },
-  sortItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
-  sortItemActive: { backgroundColor: theme.colors.brandTertiary },
-  sortItemTxt: { fontSize: 13, fontWeight: '600', color: theme.colors.onSurface },
+  searchInput: { flex: 1, fontSize: 14, color: theme.colors.onSurface, paddingVertical: 0 },
+
+  // Banner
+  banner: { height: 130, borderRadius: 18, overflow: 'hidden', padding: 16 },
+  bannerRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  bannerLbl: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '700' },
+  bannerTitle: { color: '#FFF', fontSize: 17, fontWeight: '900', marginTop: 6, lineHeight: 22, letterSpacing: -0.3 },
+  bannerCta: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FCD34D',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    marginTop: 10,
+  },
+  bannerCtaTxt: { color: '#083A8E', fontSize: 12, fontWeight: '900' },
+  bannerRight: { alignItems: 'center', width: 100 },
+  bannerImg: { width: 88, height: 88, borderRadius: 44, borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)' },
+  bannerTag: {
+    marginTop: -12,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    ...(Platform.OS === 'ios'
+      ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4 }
+      : { elevation: 3 }),
+  },
+  bannerTagTxt: { color: theme.colors.onSurface, fontSize: 9.5, fontWeight: '900' },
+  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 10 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.mutedLight },
+  dotActive: { width: 18, backgroundColor: theme.colors.brand },
+
+  // Section
+  sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 22, marginBottom: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: '900', color: theme.colors.onSurface, letterSpacing: -0.3 },
+  seeAll: { fontSize: 13, fontWeight: '800', color: theme.colors.brand },
+  catTile: {
+    width: 88,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+    gap: 8,
+  },
+  catTileActive: { backgroundColor: theme.colors.brand, borderColor: theme.colors.brand },
+  catIconBox: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.brandTertiary },
+  catLbl: { fontSize: 12, fontWeight: '800', color: theme.colors.onSurface },
+
+  // Empty
   empty: { alignItems: 'center', paddingTop: 60, gap: 6 },
   emptyTitle: { fontSize: 15, fontWeight: '800', color: theme.colors.onSurface, marginTop: 8 },
   emptySub: { fontSize: 12, color: theme.colors.muted },
-  clearBtn: {
-    marginTop: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: theme.colors.brand,
-  },
+  clearBtn: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, backgroundColor: theme.colors.brand },
   clearBtnTxt: { color: '#FFF', fontWeight: '800', fontSize: 13 },
+
   // Card
   card: {
     backgroundColor: theme.colors.surface,
@@ -463,18 +529,9 @@ const s = StyleSheet.create({
     borderColor: theme.colors.border,
     ...(theme.shadow.soft as object),
   },
-  banner: { height: 140, backgroundColor: '#0B4DB8', overflow: 'hidden' },
-  bannerBody: { flex: 1, padding: 14, justifyContent: 'flex-end' },
+  cardBanner: { minHeight: 130, padding: 14, justifyContent: 'flex-end', backgroundColor: '#0B4DB8', overflow: 'hidden' },
   chipRow: { flexDirection: 'row', gap: 6, alignItems: 'center', flexWrap: 'wrap' },
-  liveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EF4444', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   pulse: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#FFF' },
   liveTxt: { color: '#FFF', fontSize: 9.5, fontWeight: '900', letterSpacing: 0.6 },
   discChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
@@ -483,7 +540,6 @@ const s = StyleSheet.create({
   batchLabelTxt: { color: '#FCD34D', fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
   courseName: { color: '#FFF', fontSize: 18, fontWeight: '900', letterSpacing: -0.2, marginTop: 10 },
   examName: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '600', marginTop: 3 },
-  // Body
   body: { padding: 14, gap: 10 },
   statsRow: { flexDirection: 'row', gap: 8 },
   statChip: {
@@ -522,10 +578,28 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: theme.colors.brand,
   },
   viewBtnTxt: { color: '#FFF', fontWeight: '900', fontSize: 12 },
+
+  // FAB
+  fab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 84,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: theme.colors.brand,
+    ...(Platform.OS === 'ios'
+      ? { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 }
+      : { elevation: 6 }),
+  },
+  fabTxt: { color: '#FFF', fontSize: 12, fontWeight: '900' },
 });
