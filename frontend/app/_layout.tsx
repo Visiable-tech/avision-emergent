@@ -22,7 +22,8 @@ function useProtectedRoute() {
   useEffect(() => {
     if (loading) return;
     const inAuthGroup = segments[0] === 'auth';
-    if (!user && !inAuthGroup) {
+    const inAdminGroup = segments[0] === 'admin';
+    if (!user && !inAuthGroup && !inAdminGroup) {
       router.replace('/auth/welcome');
     } else if (user && inAuthGroup) {
       router.replace('/(tabs)');
@@ -69,6 +70,7 @@ function RootStack() {
       <Stack.Screen name="daily-challenge/[subject]" options={{ presentation: 'card' }} />
       <Stack.Screen name="job-alerts" options={{ presentation: 'card' }} />
       <Stack.Screen name="live/[id]" options={{ presentation: 'card' }} />
+      <Stack.Screen name="admin" />
     </Stack>
   );
 }

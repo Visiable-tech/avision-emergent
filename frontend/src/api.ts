@@ -165,6 +165,62 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }, true),
+
+  // AVISION ONE Foundation (public)
+  productsList: (type?: string, category?: string, q?: string) => {
+    const p = new URLSearchParams();
+    if (type) p.set('type', type);
+    if (category) p.set('category', category);
+    if (q) p.set('q', q);
+    const qs = p.toString();
+    return req(`/products${qs ? `?${qs}` : ''}`);
+  },
+  productDetail: (pid: string) => req(`/products/${pid}`, undefined, true),
+  myEntitlements: () => req('/entitlements/mine', undefined, true),
+  facultyList: () => req('/faculty'),
+  facultyDetail: (fid: string) => req(`/faculty/${fid}`),
+
+  // AVISION ONE Admin
+  admin: {
+    dashboard: () => req('/admin/dashboard', undefined, true),
+    students: (q?: string, limit = 50, skip = 0) => {
+      const p = new URLSearchParams();
+      if (q) p.set('q', q);
+      p.set('limit', String(limit));
+      p.set('skip', String(skip));
+      return req(`/admin/students?${p.toString()}`, undefined, true);
+    },
+    studentDetail: (uid: string) => req(`/admin/students/${uid}`, undefined, true),
+    setStudentRoles: (uid: string, roles: string[]) =>
+      req(`/admin/students/${uid}/roles`, { method: 'POST', body: JSON.stringify({ roles }) }, true),
+    products: (type?: string, q?: string, limit = 100, skip = 0) => {
+      const p = new URLSearchParams();
+      if (type) p.set('type', type);
+      if (q) p.set('q', q);
+      p.set('limit', String(limit));
+      p.set('skip', String(skip));
+      return req(`/admin/products?${p.toString()}`, undefined, true);
+    },
+    updateProduct: (pid: string, patch: any) =>
+      req(`/admin/products/${pid}`, { method: 'PATCH', body: JSON.stringify(patch) }, true),
+    orders: (limit = 50, skip = 0) =>
+      req(`/admin/orders?limit=${limit}&skip=${skip}`, undefined, true),
+    entitlements: (opts: { user_id?: string; product_id?: string; limit?: number; skip?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (opts.user_id) p.set('user_id', opts.user_id);
+      if (opts.product_id) p.set('product_id', opts.product_id);
+      p.set('limit', String(opts.limit ?? 100));
+      p.set('skip', String(opts.skip ?? 0));
+      return req(`/admin/entitlements?${p.toString()}`, undefined, true);
+    },
+    faculty: () => req('/admin/faculty', undefined, true),
+    coupons: () => req('/admin/coupons', undefined, true),
+    centres: () => req('/admin/centres', undefined, true),
+    createCentre: (body: { name: string; type?: string; city?: string; state?: string }) =>
+      req('/admin/centres', { method: 'POST', body: JSON.stringify(body) }, true),
+    enroll: (body: { user_id: string; product_id: string; amount_inr: number; method: string; note?: string; centre_id?: string; counsellor_id?: string }) =>
+      req('/admin/enroll', { method: 'POST', body: JSON.stringify(body) }, true),
+  },
   examInfo: (category?: string) =>
     req(`/exam-info${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   examInfoDetail: (id: string) => req(`/exam-info/${id}`),

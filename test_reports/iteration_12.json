@@ -1,0 +1,63 @@
+{
+  "summary": "AVISION ONE Super Admin Panel (web-only) fully verified on the web preview (viewport 1280x800). All 16 scenarios from the review pass. Login gate: unauthenticated /admin correctly redirects to /admin/login; admin login with test@avision.com / Test@123 lands on /admin dashboard; non-admin login (nonadmin.test@avision.com / Test@123) surfaces the exact copy 'This account does not have admin access.' and blocks navigation. Dashboard renders the AV sidebar with all 9 nav items (Dashboard, Students, Products, Orders, Entitlements, Faculty, Coupons, Centres, Manual Enroll), the 8-tile stats grid (Students/Active/Products/Entitlements/Orders/Faculty/Centres/Admin) plus the 'Products by type' horizontal bar chart bound to /api/admin/dashboard. Students screen shows 64 total, all 7 columns (AVISION ID, Name, Email, Phone, Category, Roles, Actions) with 25 View buttons per page, debounced search, and correct admin chip highlighting. Student detail page ({user_id}) shows hero (avatar+name+AV-ID+email), roles chips (student/active/category/admission_source), 'Make admin' button, 'Enroll' green button that carries into /admin/enroll, and the Entitlements(N) table. Products lists 35 in catalog with 5 type-filter chips + search, per-row active toggle, and Edit modal (Name/Price/Offer price/Validity days/Display order + Cancel/Save). Orders shows 4 total including the freshly created AV-ORD-26-000004 with channel=admin (Manual Enroll -> tp-plan-1m, ₹0, admin_grant, banner 'Enrollment created'). Coupons page shows the three seeded rows AVISION25/FIRST50/STUDENT15 with discount, cap, applies-to chips and 'active' status. Centres form is wired to POST /api/admin/centres and lists existing 4 rows. Manual Enroll 3-step wizard end-to-end succeeded: student debounced search -> select Tanumoy Paul (AV26-000057), product debounced search -> Test Prime 1m (amount auto-prefilled to ₹99), toggled to admin_grant, submit -> green success banner with AV-ORD-26-000004 -> new order visible on /admin/orders. Faculty/Entitlements navigated and rendered without console errors. Native gate (Platform.OS !== 'web') cannot be exercised via the web preview, but code inspection of /app/frontend/app/admin/_layout.tsx and login.tsx confirms the gate copy 'Admin panel is available only on the web.' and the 'Back to app' button are correctly guarded. No red screens, no page errors, no failed network calls observed.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/admin/orders",
+        "issues": [
+          "USER column displays raw user_id (e.g. user_e1a632c068ab) instead of email or name. Consider joining to users collection on the server or client for a friendlier label."
+        ]
+      },
+      {
+        "screen": "/admin/students",
+        "issues": [
+          "5 seeded 'Foundation Test User' rows all share phone 9999911111 and email pattern test_foundation_*@avision.com. Fine for QA but consider prefixing them with a distinct label or hiding them behind a 'TEST_' filter in production."
+        ]
+      },
+      {
+        "screen": "/admin/enroll",
+        "issues": [
+          "Note textarea shows the placeholder text 'Walk-in enrollment at Kolkata Main…' in near-black; on some browsers the placeholder color contrast can look like real value. Confirm placeholderTextColor renders as muted (currently theme.colors.mutedLight)."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/screenshots/admin_dashboard.png",
+    "/app/test_reports/screenshots/admin_students.png",
+    "/app/test_reports/screenshots/admin_products.png",
+    "/app/test_reports/screenshots/admin_orders.png",
+    "/app/test_reports/screenshots/admin_coupons.png",
+    "/app/test_reports/screenshots/admin_centres.png",
+    "/app/test_reports/screenshots/admin_enroll.png",
+    "/app/test_reports/screenshots/enroll_success.png",
+    "/app/test_reports/screenshots/orders_after.png",
+    "/app/test_reports/screenshots/student_detail.png",
+    "/app/test_reports/screenshots/product_modal.png",
+    "/app/test_reports/screenshots/nonadmin_login.png"
+  ],
+  "action_items": [
+    "OPTIONAL: /admin/orders — replace raw user_id with user name + email chip for readability.",
+    "OPTIONAL: /admin/students — hide or badge the auto-seeded 'Foundation Test User' rows behind a TEST_ toggle so production admin view isn't polluted after backfill runs.",
+    "OPTIONAL: /admin/enroll — the Note multiline field could add a small min-height and stronger placeholder muting to avoid confusion between placeholder text and entered value.",
+    "NOTE FOR MAIN AGENT: iteration_11 previously flagged that foundation.py `_upsert_product` will overwrite admin edits (`active`/`display_order`/`offer_price`) on backend restart — this is still true and the Products page will silently lose admin changes across `sudo supervisorctl restart backend`. Consider `$setOnInsert` for editable fields before hardening this for production."
+  ],
+  "critical_code_review_comments": [
+    "/app/frontend/app/admin/_layout.tsx — Redirect useEffect triggers `router.replace('/admin/login')` when a non-admin lands on any /admin/* route. Because the redirect is inside useEffect it fires after the first render; during that first render the loader 'Checking admin access…' is shown (line 61-67) which is fine, but if the AuthContext takes >1s to hydrate on cold reload the loader briefly flashes for every admin route. Consider a splash gate at the app root.",
+    "/app/frontend/app/admin/products.tsx — Edit modal keyboardType='numeric' TextInputs use `parseInt(v || '0', 10)`; a partial digit entry momentarily coerces to 0 while typing. Consider a string-backed state and coerce only on save.",
+    "/app/frontend/app/admin/enroll.tsx — Note field placeholder color depends on theme.mutedLight; verified visually but placeholder text renders bold due to the shared s.input style (`fontWeight: '700'`). Split placeholder styling from value styling for clarity.",
+    "/app/frontend/app/admin/students.tsx — pager 'Prev/Next' uses `variant='ghost'` on `Btn` which paints the buttons in brand tertiary (light blue) on white — still readable, but the disabled state (opacity 0.5) can look identical to enabled on some monitors. Consider adding a border to the ghost variant when disabled.",
+    "/app/frontend/app/admin/_layout.tsx — Logout handler `signOut(); router.replace('/admin/login');` runs both statements synchronously; if AuthContext.signOut is async, the replace may happen before the auth state clears and the login page's redirect guard could immediately bounce back on hot reload. Consider awaiting signOut."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "not tested (frontend-only per request; backend already 48/48 in iter11)", "frontend": "100% (16/16 admin scenarios verified)" },
+  "seed_data_creation": "Left in DB: 1 new order AV-ORD-26-000004 (admin channel, tp-plan-1m, ₹0, admin_grant) enrolled to Tanumoy Paul (AV26-000057, tanumoy.paul@gmail.com). Also 1 new centre 'TEST_CENTRE_9323' added earlier (own, Kolkata/WB) — 4 test centres visible on /admin/centres. Non-admin user 'nonadmin.test@avision.com / Test@123' (AV26-000060) already existed from prior iteration and remains as a non-admin fixture.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Super Admin Panel lives at /admin/* on the web preview (https://avision-study-dash.preview.emergentagent.com/admin). Native platforms show the gate. Admin creds: test@avision.com / Test@123 (roles include 'admin'). Non-admin fixture: nonadmin.test@avision.com / Test@123 (AV26-000060, roles=['student']). Order counter is now at AV-ORD-26-000004 (was 000001 at iter11 start). Any further Manual Enroll runs will increment monotonically. Products stay at 35 and Faculty at 6 across restarts. Centres = 4. Coupons = 3 (AVISION25/FIRST50/STUDENT15). All /api/admin/* routes require the 'admin' role; hitting them without it returns 403. Frontend calls use process.env.EXPO_PUBLIC_BACKEND_URL (frontend/.env). No mocks anywhere.",
+  "rca_of_issue": "N/A — this iteration is a frontend feature verification pass. Every screen in scope loaded, integrated with its /api/admin/* endpoint, and produced the expected state transitions on the very first try. Only three optional design polish items were identified (user_id label on orders, seeded 'Foundation Test User' rows visible in student list, note-textarea placeholder styling)."
+}

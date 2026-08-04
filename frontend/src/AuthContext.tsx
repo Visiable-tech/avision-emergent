@@ -4,6 +4,12 @@ import { getToken, setToken } from './tokenStore';
 
 export type User = {
   user_id: string;
+  avision_id?: string;
+  roles?: string[];
+  active?: boolean;
+  centre_id?: string | null;
+  admission_source?: string;
+  counsellor_id?: string | null;
   name: string;
   email: string;
   phone?: string;
