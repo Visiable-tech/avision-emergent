@@ -222,21 +222,30 @@ agent_communication:
 
   - agent: "main"
     message: |
-      [Video Courses — Phase 1 complete]
-      Backend: /app/backend/video_courses.py exposes /api/video-courses (list),
-      /categories, /{cid} (detail), /coupons/validate, /{cid}/pay/order, /{cid}/pay/verify,
-      /{cid}/enroll/free, /enrollments/mine, /continue-learning. Router registered in server.py
-      with init_video_courses(db) + ensure_video_courses_indexes.
-      Frontend: rewrote (tabs)/courses.tsx as the Video Courses landing (search, category
-      chips, banner, popular list, sort, FAB). Added video-courses/[id].tsx sales page with
-      hero, stats overlap, features grid, curriculum accordion (subject→chapter→lectures),
-      faculty rail, coupon input+hints, sticky Buy Now bar and Razorpay web checkout wiring.
-      Added video-courses/my.tsx placeholder for enrolled users.
-      Test agent iteration_9: 21/21 backend pytest cases pass; all frontend testIDs verified;
-      no blocking issues. Phase 2 (post-purchase dashboard + player) is NEXT.
+      [Video Courses — Phase 2 + Phase 3 complete]
+      Backend: added `/api/video-courses/{cid}/progress` (GET+POST), `/analytics`, `/lecture/{lid}`;
+      new collection `vc_progress` with per-user per-lecture watch state; enrollment aggregates
+      (progress_pct, videos_watched, watch_time_hours, last_activity_at) auto-recomputed on upsert.
+      Curriculum seed enriched — every chapter with video_count>0 auto-generates lectures with
+      Google sample MP4 URLs.
+      Frontend: new `/video-courses/dashboard/[id].tsx` (hero + progress ring + resume + weekly
+      chart + subject-wise breakdown + curriculum with per-lecture progress ticks) and
+      `/video-courses/watch/[id].tsx` (HTML5 <video> on web, expo-video via platform-split
+      NativeVideo.native.tsx on device; auto-save every 15s or >=2% delta, force-save on unmount
+      or lecture switch). Enrolled Course Detail + My Courses list routing now targets dashboard.
+      Test agent iteration_10: 30/30 backend pass (9 new + 21 regression); all frontend flows
+      verified; no blocking issues.
   - agent: "testing"
     message: |
-      [iteration_9] Video Courses Phase 1 tested end-to-end. Backend 21/21 pass.
-      Frontend flows work: landing → detail → coupon apply → buy now (web Razorpay
-      flow reachable). Regression: /live-class, live-courses, ai-doubt unchanged. Two
-      minor code-review notes are non-blocking.
+      [iteration_10] Phase 2 + Phase 3 tested end-to-end. Backend 30/30 pass. Frontend flows:
+      dashboard → resume/lecture tap → watch → mark complete → dashboard update. Regression:
+      Phase 1 flows, Live Courses, AI Doubt unchanged.
+
+  - agent: "main"
+    message: |
+      [AVISION ONE Architecture Audit produced at /app/memory/AVISION_ONE_AUDIT.md]
+      Full audit of current stack, DB schema, hardcoded vs DB-backed modules, and phased
+      migration plan (foundation → app connect → super admin → website → AI). Path C (hybrid)
+      chosen — minimal `vc_progress` collection introduced now to unblock Video Courses
+      Phase 2/3 shipping. Unified `products/orders/payments/entitlements/faculty/coupons`
+      unification queued for the Common Foundation phase before further module builds.

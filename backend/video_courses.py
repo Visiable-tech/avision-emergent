@@ -654,11 +654,6 @@ async def _recompute_enrollment_stats(user_id: str, course: dict):
     )
 
 
-class _ProgressBody(dict):
-    """Progress upsert payload (kept lax on typing for MVP)."""
-    pass
-
-
 @router.post("/{cid}/progress")
 async def upsert_progress(cid: str, body: dict, user=Depends(get_current_user)):
     course = next((x for x in COURSES if x["id"] == cid and x.get("status") == "active"), None)
