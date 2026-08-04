@@ -43,6 +43,27 @@ export default function LiveClassScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.brand} />}
       >
+        {/* Promo: Live Courses catalog entry */}
+        <Pressable
+          testID="live-courses-cta"
+          onPress={() => router.push('/live-courses')}
+          style={s.promo}
+        >
+          <LinearGradient colors={[theme.colors.brand, theme.colors.brandDark]} style={StyleSheet.absoluteFillObject} />
+          <View style={s.promoContent}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.promoLbl}>NEW • LIVE BATCHES 2026</Text>
+              <Text style={s.promoTitle}>Full Live Courses{"\n"}with Top Faculty</Text>
+              <Text style={s.promoSub}>Live classes • Recordings • Mock tests • Doubt sessions</Text>
+              <View style={s.promoCta}>
+                <Text style={s.promoCtaTxt}>Explore Live Courses</Text>
+                <Ionicons name="arrow-forward" size={14} color={theme.colors.brand} />
+              </View>
+            </View>
+            <Ionicons name="school" size={54} color="rgba(255,255,255,0.35)" />
+          </View>
+        </Pressable>
+
         {liveNow.length > 0 && (
           <>
             <View style={s.sectionHeader}>
@@ -130,4 +151,26 @@ const s = StyleSheet.create({
   reminderTxt: { color: theme.colors.brand, fontWeight: '800', fontSize: 11 },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 10 },
   emptyTxt: { color: theme.colors.muted, fontSize: 13 },
+  promo: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 16,
+    ...(theme.shadow.soft as object),
+  },
+  promoContent: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 10 },
+  promoLbl: { color: '#FCD34D', fontSize: 10.5, fontWeight: '900', letterSpacing: 1.2 },
+  promoTitle: { color: '#FFF', fontSize: 18, fontWeight: '900', marginTop: 6, letterSpacing: -0.2 },
+  promoSub: { color: 'rgba(255,255,255,0.85)', fontSize: 11.5, fontWeight: '600', marginTop: 6 },
+  promoCta: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  promoCtaTxt: { color: theme.colors.brand, fontSize: 12, fontWeight: '900' },
 });

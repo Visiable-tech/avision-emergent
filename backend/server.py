@@ -40,6 +40,11 @@ from live_batches import router as live_batches_router
 from exam_info import router as exam_info_router
 from test_prime import init_test_prime, ensure_test_prime_indexes, router as test_prime_router
 from magazine_booster import init_magazine_booster, router as magazine_booster_router
+from live_courses import (
+    init_live_courses,
+    ensure_live_courses_indexes,
+    router as live_courses_router,
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -63,6 +68,7 @@ init_home(db)
 init_feed(db)
 init_test_prime(db)
 init_magazine_booster(db)
+init_live_courses(db)
 
 
 def _get_courses():
@@ -80,6 +86,7 @@ app.include_router(live_batches_router)
 app.include_router(exam_info_router)
 app.include_router(test_prime_router)
 app.include_router(magazine_booster_router)
+app.include_router(live_courses_router)
 
 
 @app.on_event("startup")
@@ -89,6 +96,7 @@ async def _startup():
     await ensure_home_indexes(db)
     await ensure_feed_indexes(db)
     await ensure_test_prime_indexes(db)
+    await ensure_live_courses_indexes(db)
 
 
 # ---------------- Models ----------------

@@ -259,7 +259,7 @@ export default function Home() {
         {/* 3. Live Classes – premium promo banner slider */}
         {liveBatches.length > 0 && (
           <>
-            <SectionRow title="Live Classes" onViewAll={() => router.push(`/live-batch/${liveBatches[0].id}`)} />
+            <SectionRow title="Live Classes" onViewAll={() => router.push('/live-courses')} />
             <FlatList
               ref={batchRef}
               testID="live-batch-slider"

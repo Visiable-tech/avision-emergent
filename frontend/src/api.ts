@@ -45,6 +45,27 @@ export const api = {
   liveBatches: (category?: string, limit = 10) =>
     req(`/live-batches?limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
   liveBatchDetail: (id: string) => req(`/live-batches/${id}`),
+  // Live Courses (full sales + enrollment flow)
+  liveCourses: (opts: { category?: string; exam?: string; language?: string; sort?: string } = {}) => {
+    const p = new URLSearchParams();
+    Object.entries(opts).forEach(([k, v]) => {
+      if (v) p.set(k, String(v));
+    });
+    const qs = p.toString();
+    return req(`/live-courses${qs ? `?${qs}` : ''}`);
+  },
+  liveCourseFilters: () => req(`/live-courses/filters`),
+  liveCourseDetail: (id: string) => req(`/live-courses/${id}`, undefined, true),
+  liveCourseFaculties: () => req('/live-courses/faculties'),
+  liveCourseFacultyDetail: (fid: string) => req(`/live-courses/faculties/${fid}`),
+  liveCourseMyEnrollments: () => req('/live-courses/enrollments/mine', undefined, true),
+  liveCoursePayConfig: () => req('/live-courses/pay/config'),
+  liveCourseCreateOrder: (cid: string) =>
+    req(`/live-courses/${cid}/pay/order`, { method: 'POST' }, true),
+  liveCourseVerify: (cid: string, payload: any) =>
+    req(`/live-courses/${cid}/pay/verify`, { method: 'POST', body: JSON.stringify(payload) }, true),
+  liveCourseFreeEnroll: (cid: string) =>
+    req(`/live-courses/${cid}/enroll/free`, { method: 'POST' }, true),
   examInfo: (category?: string) =>
     req(`/exam-info${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   examInfoDetail: (id: string) => req(`/exam-info/${id}`),
