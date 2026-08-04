@@ -62,6 +62,11 @@ from ai_doubt import (
     ensure_ai_doubt_indexes,
     router as ai_doubt_router,
 )
+from video_courses import (
+    init_video_courses,
+    ensure_video_courses_indexes,
+    router as video_courses_router,
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -89,6 +94,7 @@ init_live_courses(db)
 init_live_classroom(db)
 init_study_materials(db)
 init_ai_doubt(db)
+init_video_courses(db)
 
 
 def _get_courses():
@@ -110,6 +116,7 @@ app.include_router(live_courses_router)
 app.include_router(live_classroom_router)
 app.include_router(study_materials_router)
 app.include_router(ai_doubt_router)
+app.include_router(video_courses_router)
 
 
 @app.on_event("startup")
@@ -125,6 +132,7 @@ async def _startup():
     await ensure_study_materials_indexes(db)
     await seed_all_materials()
     await ensure_ai_doubt_indexes(db)
+    await ensure_video_courses_indexes(db)
 
 
 # ---------------- Models ----------------

@@ -124,6 +124,35 @@ export const api = {
       body: JSON.stringify({ message, image_base64: image_base64 || null }),
     }, true),
   aiDeleteThread: (tid: string) => req(`/ai-doubt/threads/${tid}`, { method: 'DELETE' }, true),
+  // Video Courses (Phase 1)
+  vcCategories: () => req('/video-courses/categories'),
+  vcList: (category?: string, sort?: string) => {
+    const p = new URLSearchParams();
+    if (category) p.set('category', category);
+    if (sort) p.set('sort', sort);
+    const qs = p.toString();
+    return req(`/video-courses${qs ? `?${qs}` : ''}`);
+  },
+  vcDetail: (cid: string) => req(`/video-courses/${cid}`, undefined, true),
+  vcValidateCoupon: (code: string, price: number) =>
+    req('/video-courses/coupons/validate', {
+      method: 'POST',
+      body: JSON.stringify({ code, price }),
+    }, true),
+  vcCreateOrder: (cid: string, coupon_code?: string) =>
+    req(`/video-courses/${cid}/pay/order`, {
+      method: 'POST',
+      body: JSON.stringify({ coupon_code: coupon_code || '' }),
+    }, true),
+  vcVerify: (cid: string, payload: any) =>
+    req(`/video-courses/${cid}/pay/verify`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, true),
+  vcFreeEnroll: (cid: string) =>
+    req(`/video-courses/${cid}/enroll/free`, { method: 'POST' }, true),
+  vcMyEnrollments: () => req('/video-courses/enrollments/mine', undefined, true),
+  vcContinue: () => req('/video-courses/continue-learning', undefined, true),
   examInfo: (category?: string) =>
     req(`/exam-info${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   examInfoDetail: (id: string) => req(`/exam-info/${id}`),
