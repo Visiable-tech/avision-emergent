@@ -296,11 +296,15 @@ async def list_hand_raises(sid: str, user=Depends(get_current_user)):
 
 @router.post("/sessions/{sid}/polls")
 async def create_poll(sid: str, body: dict, user=Depends(get_current_user)):
-    """Create a poll (instructor OR — for demo — any enrolled user)."""
+    """Create a poll (instructor-only).
+    Users can be promoted via `POST /api/live-classroom/dev/promote-instructor`
+    for testing / demo purposes."""
     ses = await _db.lc_sessions.find_one({"session_id": sid})
     if not ses:
         raise HTTPException(404, "Session not found")
     await _assert_enrolled(user["user_id"], ses["course_id"])
+    if not user.get("is_instructor"):
+        raise HTTPException(403, "Only instructors can launch a poll")
     question = (body.get("question") or "").strip()
     options = body.get("options") or []
     if not question or len(options) < 2:
@@ -388,6 +392,20 @@ async def close_poll(pid: str, user=Depends(get_current_user)):
     upd = await _db.lc_polls.find_one({"id": pid}, {"_id": 0})
     await broadcaster.broadcast(poll["session_id"], {"type": "poll_close", "poll": upd})
     return upd
+
+
+@router.post("/dev/promote-instructor")
+async def promote_instructor(user=Depends(get_current_user)):
+    """Dev helper: mark current user as instructor. Idempotent."""
+    if _db is None:
+        raise HTTPException(500, "Not initialised")
+    await _db.users.update_one({"user_id": user["user_id"]}, {"$set": {"is_instructor": True}})
+    return {"ok": True, "is_instructor": True}
+
+
+@router.get("/me/role")
+async def my_role(user=Depends(get_current_user)):
+    return {"user_id": user["user_id"], "is_instructor": bool(user.get("is_instructor"))}
 
 
 # ---------------------- WEBSOCKET LAYER ---------------------------

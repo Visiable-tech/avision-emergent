@@ -99,6 +99,20 @@ export const api = {
     }, true),
   lcClosePoll: (pid: string) =>
     req(`/live-classroom/polls/${pid}/close`, { method: 'POST' }, true),
+  lcMyRole: () => req('/live-classroom/me/role', undefined, true),
+  lcPromoteInstructor: () => req('/live-classroom/dev/promote-instructor', { method: 'POST' }, true),
+  // Phase 4 — Study Materials
+  studyMaterialsSummary: (course_id: string) =>
+    req(`/study-materials/summary?course_id=${encodeURIComponent(course_id)}`, undefined, true),
+  studyMaterialsList: (course_id: string, subject?: string, type?: string) => {
+    const p = new URLSearchParams({ course_id });
+    if (subject) p.set('subject', subject);
+    if (type) p.set('type', type);
+    return req(`/study-materials?${p.toString()}`, undefined, true);
+  },
+  studyMaterialOpen: (mid: string) => req(`/study-materials/${mid}`, undefined, true),
+  // Phase 4 — Course Analytics
+  courseAnalytics: (cid: string) => req(`/live-courses/analytics/${cid}`, undefined, true),
   examInfo: (category?: string) =>
     req(`/exam-info${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   examInfoDetail: (id: string) => req(`/exam-info/${id}`),

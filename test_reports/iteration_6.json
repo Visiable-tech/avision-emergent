@@ -1,0 +1,60 @@
+{
+  "summary": "Comprehensive regression on Avision Live Courses module (Phases 1-4) — backend + frontend. Ran 37 pytest tests in /app/backend/tests/test_live_courses_module.py — all PASS after two test-only alignments with API contract (statuses via `status` field, not `type`; `weekly_hours_trend` nested under `overall`). Frontend UI (mobile viewport 390x844) exercised end-to-end via Playwright: login, catalog + filters + sort, course detail (Go to Course CTA correctly shown for enrolled user), FAQ expand, Dashboard (next-action, quick tiles, targets, schedule), Study Materials, Analytics, Live Classroom (video player, LIVE badge, chat send + echo, hand-raise toggle), My Courses. WebSocket welcome + chat echo + pong all confirmed. Instructor-gated poll create → vote → close all working. No P0/P1 bugs found. Two minor spec discrepancies to note for the main agent (see action_items).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/live-courses/analytics/{cid}",
+        "issue": "Review spec requested `weekly_hours_trend` at top level of the response, but backend nests it inside `overall.weekly_hours_trend`. Frontend already binds to overall.weekly_hours_trend so this is a spec-doc mismatch, not a code bug. Test aligned to actual API."
+      },
+      {
+        "endpoint": "GET /api/live-classroom/sessions?course_id=...",
+        "issue": "Seeded sessions have `type` = 'live' for both the live-now and upcoming rows (only the recorded row has type='recorded'). The three states (live/upcoming/recorded) are only exposed via the `status` field. Consider setting type='upcoming' on the future-scheduled session too for a cleaner contract."
+      },
+      {
+        "endpoint": "GET /api/live-classroom/sessions/{sid} — status auto-refresh block (lines 209-223)",
+        "issue": "The endpoint recomputes and overwrites `status` in the response but never persists it back to Mongo, and does not set `starts_in_min` on recorded/ended branches. Cosmetic — functional but slightly inconsistent."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "live-courses catalog (index.tsx)", "issues": ["Only ~2 cards materialised in initial DOM query on 390x844 viewport (RN VirtualizedList behaviour). Filter chip narrows correctly and card→detail navigation works, so no user-facing issue. Just noting for future testers."]}
+    ],
+    "react_native_issues": [
+      {"component": "pointerEvents prop (repo-wide)", "issue": "Pre-existing RN-Web console warning `props.pointerEvents is deprecated. Use style.pointerEvents`. Not introduced by Phase 1-4 code but still surfaces on every page load."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_live_courses_module.py",
+    "/app/test_reports/pytest/pytest_iter6_live.xml"
+  ],
+  "action_items": [
+    "(Doc/contract) Decide whether `weekly_hours_trend` should live at top-level of the analytics response (matches original spec) or stay under `overall`. Frontend currently reads it from `overall.weekly_hours_trend` so lifting it to top-level would be a breaking change unless you also mirror it. Recommend keeping under `overall` and updating the review-spec doc.",
+    "(Cleanliness) In `live_classroom._seed_sessions_for_course`, set the upcoming row's `type` to 'upcoming' (currently 'live'). Downstream logic already keys off `status`, so this is purely a data-consistency win.",
+    "(Cleanliness) In `live_classroom.session_detail`, when the type is 'recorded' or the session has ended, remove `starts_in_min` from the response or set it to 0 for consistency.",
+    "(Optional) Silence the RN-Web `pointerEvents` deprecation warning across the repo (migrate to `style.pointerEvents`)."
+  ],
+  "critical_code_review_comments": [
+    "live_courses.py is 1039 lines — split into `live_courses/catalog.py`, `live_courses/enrollment.py`, `live_courses/dashboard.py`, `live_courses/analytics.py` for maintainability.",
+    "live_courses.py uses in-process `COURSES` list from seed_data instead of Mongo for course content — fine for now but means changes require a backend restart. Consider a `lc_courses` collection with seed-on-startup for parity with sessions/materials.",
+    "MongoDB ObjectId hygiene is correct — every query uses `{'_id': 0}` projection or `doc.pop('_id', None)`. Good.",
+    "Razorpay signature verification uses `hmac.compare_digest` — good, timing-safe.",
+    "Instructor gating on poll create is enforced server-side (line 306-307) — cannot be bypassed by tampering with the frontend. Good.",
+    "WebSocket auth flow decodes JWT before joining the room and validates enrollment — solid.",
+    "`_dashboard_payload` computes `progress_pct` with capped weighting formula that can jitter with every PATCH — acceptable but consider persisting a canonical `progress_pct` on the enrollment doc rather than recomputing.",
+    "`analytics/{cid}` is fully synthetic/deterministic (md5 of user_id+course_id). Fine for demo; flag that real data-warehouse integration is still needed.",
+    "The dev endpoints `POST /api/live-courses/{cid}/enroll/free` and `POST /api/live-classroom/dev/promote-instructor` should be gated behind an env flag (e.g. `ENABLE_DEV_HELPERS=1`) before going to prod."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_live_courses_module.py (NEW — 37 test cases)"
+  ],
+  "success_rate": {"backend": "100% (37/37 passed)", "frontend": "100% (all critical flows working)"},
+  "seed_data_creation": "None. Used existing test user test@avision.com / Test@123 which is already enrolled in lc-banking-po-2026 and promoted to is_instructor=true per /app/memory/test_credentials.md.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "1) Login: on landing tap 'I already have an account' then use testIDs login-email/login-password/login-submit. 2) Backend base URL comes from frontend/.env EXPO_PUBLIC_BACKEND_URL; use it as `${BASE_URL}/api`. 3) WebSocket URL: `wss://<host>/api/live-classroom/ws/{sid}?token={jwt}`. Presence is announced BEFORE welcome so first frame may be `presence` type — read one extra frame if so (see test_ws_welcome_and_chat_echo). 4) Sessions endpoint distinguishes live/upcoming/recorded via `status` field (not `type`). 5) Analytics `weekly_hours_trend` lives at `overall.weekly_hours_trend`. 6) The `POST /api/live-courses/{cid}/pay/order` endpoint returns 400 if user is already enrolled — pick an un-enrolled course when writing new order tests. 7) The dashboard next_action returns type='live_now' because ses-<cid>-live starts 20 min in the past — reliable for testing LIVE UI. 8) Study material summary/list return 20 items (5 subjects × 4 types) for lc-banking-po-2026.",
+  "rca_of_issue": "N/A — no bugs. Two initial test-vs-spec mismatches were resolved by aligning tests to the actual (and reasonable) API shape. Details in action_items."
+}

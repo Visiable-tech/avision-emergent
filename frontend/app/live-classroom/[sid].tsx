@@ -48,10 +48,11 @@ export default function LiveClassroom() {
   const [myVote, setMyVote] = useState<string | null>(null);
   const [creatingPoll, setCreatingPoll] = useState(false);
   const [videoOn, setVideoOn] = useState(false);
+  const [isInstructor, setIsInstructor] = useState(false);
   const wsRef = useRef<ClassroomWs | null>(null);
   const chatRef = useRef<ScrollView>(null);
 
-  // Load session + chat history + hand raises
+  // Load session + chat history + hand raises + role
   const load = useCallback(async () => {
     if (!sid) return;
     setLoading(true);
@@ -69,6 +70,10 @@ export default function LiveClassroom() {
       setMessages(history.messages || []);
       const hr = await api.lcHandRaises(sid);
       setHandList(hr.hand_raises || []);
+      try {
+        const me = await api.lcMyRole();
+        setIsInstructor(!!me.is_instructor);
+      } catch { /* ignore */ }
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to load session');
     } finally {
@@ -247,12 +252,21 @@ export default function LiveClassroom() {
             onPress={toggleHand}
             testID="cls-hand"
           />
-          <ActionBtn
-            icon="stats-chart-outline"
-            label="New Poll"
-            onPress={() => setCreatingPoll(true)}
-            testID="cls-newpoll"
-          />
+          {isInstructor ? (
+            <ActionBtn
+              icon="stats-chart-outline"
+              label="New Poll"
+              onPress={() => setCreatingPoll(true)}
+              testID="cls-newpoll"
+            />
+          ) : (
+            <ActionBtn
+              icon="megaphone-outline"
+              label="Ask Doubt"
+              onPress={() => {}}
+              testID="cls-doubt"
+            />
+          )}
           <ActionBtn icon="document-text-outline" label="Notes" onPress={() => {}} testID="cls-notes" />
           <ActionBtn icon="bookmark-outline" label="Save" onPress={() => {}} testID="cls-save" />
         </View>
@@ -299,7 +313,13 @@ export default function LiveClassroom() {
             />
           )}
           {tab === 'poll' && (
-            <PollPane poll={poll} myVote={myVote} onVote={votePoll} onCreate={() => setCreatingPoll(true)} />
+            <PollPane
+              poll={poll}
+              myVote={myVote}
+              onVote={votePoll}
+              onCreate={() => setCreatingPoll(true)}
+              canCreate={isInstructor}
+            />
           )}
           {tab === 'hands' && <HandsPane hands={handList} />}
         </View>
@@ -414,17 +434,21 @@ function ChatRow({ m, isMe }: { m: ChatMsg; isMe: boolean }) {
   );
 }
 
-function PollPane({ poll, myVote, onVote, onCreate }: any) {
+function PollPane({ poll, myVote, onVote, onCreate, canCreate }: any) {
   if (!poll) {
     return (
       <View style={s.empty}>
         <Ionicons name="stats-chart-outline" size={40} color={theme.colors.mutedLight} />
         <Text style={s.emptyTxt}>No active poll</Text>
-        <Text style={s.emptySub}>Instructor will launch a poll shortly.</Text>
-        <Pressable style={s.newPollBtn} onPress={onCreate} testID="poll-launch">
-          <Ionicons name="add" size={14} color="#FFF" />
-          <Text style={s.newPollTxt}>Launch a Poll</Text>
-        </Pressable>
+        <Text style={s.emptySub}>
+          {canCreate ? 'Launch a poll for your students.' : 'Instructor will launch a poll shortly.'}
+        </Text>
+        {canCreate ? (
+          <Pressable style={s.newPollBtn} onPress={onCreate} testID="poll-launch">
+            <Ionicons name="add" size={14} color="#FFF" />
+            <Text style={s.newPollTxt}>Launch a Poll</Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   }

@@ -925,3 +925,114 @@ async def session_detail(sid: str, user=Depends(get_current_user)):
         "session": _build_session(course, day_offset, subj_idx),
         "course": _summary(course),
     }
+
+
+# ========================================================
+#     PHASE 4 — SUBJECT-WISE ANALYTICS
+# ========================================================
+
+
+@router.get("/analytics/{cid}")
+async def course_analytics(cid: str, user=Depends(get_current_user)):
+    """Deep subject-wise analytics for an enrolled course."""
+    if _db is None:
+        raise HTTPException(500, "Not initialised")
+    course = next((c for c in COURSES if c["id"] == cid and c.get("status") == "active"), None)
+    if not course:
+        raise HTTPException(404, "Course not found")
+    enrollment = await _db.lc_enrollments.find_one({"user_id": user["user_id"], "course_id": cid}, {"_id": 0})
+    if not enrollment:
+        raise HTTPException(403, "Not enrolled in this course")
+
+    curriculum = course.get("curriculum", [])
+    seed = _dget(user["user_id"], cid)
+    overall_accuracy = 60 + _hash_int(seed + ":overall", 30)
+
+    subjects_out = []
+    for i, s in enumerate(curriculum):
+        topics = s.get("topics", [])
+        subj_seed = seed + f":sanalytics:{i}"
+        attempts = 5 + _hash_int(subj_seed + ":att", 25)
+        accuracy = 55 + _hash_int(subj_seed + ":acc", 40)
+        avg_time_sec = 45 + _hash_int(subj_seed + ":time", 55)
+        classes_att = _hash_int(subj_seed + ":cls", 25)
+        classes_total = 25 + _hash_int(subj_seed + ":clsT", 15)
+
+        topic_stats = []
+        for j, t in enumerate(topics):
+            tacc = 40 + _hash_int(subj_seed + f":t{j}", 55)
+            attempts_j = 3 + _hash_int(subj_seed + f":t{j}:att", 15)
+            topic_stats.append({
+                "topic": t,
+                "accuracy": tacc,
+                "attempts": attempts_j,
+                "mastery": "strong" if tacc >= 75 else ("moderate" if tacc >= 55 else "weak"),
+            })
+        topic_stats.sort(key=lambda x: x["accuracy"])
+        weak_topics = [t for t in topic_stats if t["mastery"] == "weak"]
+        strong_topics = [t for t in topic_stats if t["mastery"] == "strong"]
+        peer_avg = max(40, accuracy - 5 - _hash_int(subj_seed + ":peer", 12))
+
+        subjects_out.append({
+            "subject": s.get("subject"),
+            "hours": s.get("hours"),
+            "total_topics": len(topics),
+            "attempts": attempts,
+            "accuracy": accuracy,
+            "avg_time_sec": avg_time_sec,
+            "classes_attended": min(classes_att, classes_total),
+            "classes_total": classes_total,
+            "attendance_pct": int((min(classes_att, classes_total) / max(1, classes_total)) * 100),
+            "peer_avg_accuracy": peer_avg,
+            "vs_peer_delta": accuracy - peer_avg,
+            "topics": topic_stats,
+            "weak_topics": weak_topics[:5],
+            "strong_topics": strong_topics[:5],
+            "trend": [40 + _hash_int(subj_seed + f":trend:{k}", 55) for k in range(6)],
+            "faculty_id": (course.get("faculty_ids") or [None])[i % max(1, len(course.get("faculty_ids", [])) or 1)],
+        })
+
+    all_weak = []
+    all_strong = []
+    for s in subjects_out:
+        for t in s["topics"]:
+            entry = {"subject": s["subject"], **t}
+            if t["mastery"] == "weak":
+                all_weak.append(entry)
+            elif t["mastery"] == "strong":
+                all_strong.append(entry)
+    all_weak.sort(key=lambda x: x["accuracy"])
+    all_strong.sort(key=lambda x: -x["accuracy"])
+
+    weekly_hours = [round(1 + _hash_int(seed + f":wk:{k}", 60) / 10, 1) for k in range(6)]
+    total_att = sum(s["classes_attended"] for s in subjects_out)
+    total_cls = sum(s["classes_total"] for s in subjects_out)
+
+    top_weak_names = [w["topic"] for w in all_weak[:3]]
+    ai_tips = []
+    if top_weak_names:
+        ai_tips.append(f"Focus on: {', '.join(top_weak_names)} — practice 15 questions daily.")
+    ai_tips.append("Attempt 2 sectional mocks this week to improve consistency.")
+    if overall_accuracy < 70:
+        ai_tips.append("Revise class notes daily; target 30 minutes on weak topics.")
+    else:
+        ai_tips.append("Push accuracy further with topic-wise timed practice.")
+
+    return {
+        "course": _summary(course),
+        "overall": {
+            "accuracy_pct": overall_accuracy,
+            "attempts_total": sum(s["attempts"] for s in subjects_out),
+            "classes_attended": total_att,
+            "classes_total": total_cls,
+            "attendance_pct": int((total_att / max(1, total_cls)) * 100),
+            "weekly_hours_trend": weekly_hours,
+            "strong_count": len(all_strong),
+            "weak_count": len(all_weak),
+        },
+        "subjects": subjects_out,
+        "top_weak": all_weak[:5],
+        "top_strong": all_strong[:5],
+        "ai_tips": ai_tips,
+    }
+

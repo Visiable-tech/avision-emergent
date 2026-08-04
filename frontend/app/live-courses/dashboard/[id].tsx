@@ -193,10 +193,10 @@ export default function CourseDashboard() {
             }}
             testID="quick-recordings"
           />
-          <QuickTile icon="document-text" color="#7C3AED" label="Notes" onPress={() => {}} testID="quick-notes" />
+          <QuickTile icon="document-text" color="#7C3AED" label="Notes" onPress={() => router.push(`/live-courses/materials/${id}`)} testID="quick-notes" />
           <QuickTile icon="clipboard" color="#059669" label="Tests" onPress={() => router.push('/test-prime')} testID="quick-tests" />
           <QuickTile icon="help-circle" color="#F59E0B" label="Doubts" onPress={() => {}} testID="quick-doubts" />
-          <QuickTile icon="stats-chart" color="#0891B2" label="Progress" onPress={() => {}} testID="quick-progress" />
+          <QuickTile icon="stats-chart" color="#0891B2" label="Progress" onPress={() => router.push(`/live-courses/analytics/${id}`)} testID="quick-progress" />
         </View>
 
         {/* Today's Schedule — uses real sessions when available */}
