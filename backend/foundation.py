@@ -199,14 +199,28 @@ def _norm_product(p: dict) -> dict:
 
 
 async def _upsert_product(p: dict):
+    """Upsert a product from a legacy hardcoded list.
+    Fields the admin can edit via CMS are set only on FIRST insert; everything
+    else (system-managed: type, category linkage, meta payload) can be updated
+    on every seed pass so schema changes to legacy modules flow through."""
     p = _norm_product(p)
-    p_set = {k: v for k, v in p.items() if k != "created_at"}
-    p_set["updated_at"] = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
+
+    ADMIN_EDITABLE = {
+        "name", "price", "offer_price", "banner_image", "gradient",
+        "features", "faculty_ids", "language", "validity_days",
+        "active", "visibility", "display_order", "seo",
+    }
+    system_managed = {k: v for k, v in p.items() if k not in ADMIN_EDITABLE and k != "created_at"}
+    system_managed["updated_at"] = now
+    admin_defaults = {k: v for k, v in p.items() if k in ADMIN_EDITABLE}
+    admin_defaults["created_at"] = now  # only on insert
+
     await _db.products.update_one(
         {"id": p["id"]},
         {
-            "$set": p_set,
-            "$setOnInsert": {"created_at": p.get("created_at") or datetime.now(timezone.utc).isoformat()},
+            "$set": system_managed,
+            "$setOnInsert": admin_defaults,
         },
         upsert=True,
     )

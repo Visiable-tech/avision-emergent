@@ -249,3 +249,25 @@ agent_communication:
       chosen — minimal `vc_progress` collection introduced now to unblock Video Courses
       Phase 2/3 shipping. Unified `products/orders/payments/entitlements/faculty/coupons`
       unification queued for the Common Foundation phase before further module builds.
+  - agent: "main"
+    message: |
+      [AVISION ONE Foundation Phase 1a complete — /app/backend/foundation.py]
+      Non-breaking. New collections: products, faculty, coupons, orders, payments,
+      entitlements, centres, _counters. Users extended with avision_id / roles[] /
+      centre_id / admission_source / counsellor_id / active (idempotent backfill).
+      Idempotent seed migrated 35 products (live=8, video=8, test=5, booster=9,
+      magazine=5), 6 faculty, 3 coupons. Entitlements backfilled from lc/vc/tp
+      enrollments. Public APIs: /api/products*, /api/entitlements/mine, /api/faculty*.
+      Admin APIs: /api/admin/{dashboard,students,products,orders,entitlements,
+      enroll,centres,students/{id}/roles} — guarded by roles[] contains "admin".
+      test@avision.com auto-promoted to admin. New user register now attaches
+      avision_id + roles immediately. Admin edits on products survive restarts
+      (system-managed vs admin-editable field split).
+      Existing mobile app untouched — all façade APIs still work.
+      Test agent iteration_11: 48/48 pass (39 foundation + 9 vc regression).
+  - agent: "testing"
+    message: |
+      [iteration_11] Foundation Phase 1a verified end-to-end. 48/48 pass. Seed
+      idempotency confirmed across 2 restarts. Admin guards enforced (403 for
+      non-admin). Avision ID counter monotonic. Order/payment/entitlement chain
+      correct for manual-enroll. No regressions in legacy routes.
