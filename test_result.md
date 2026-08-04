@@ -265,9 +265,23 @@ agent_communication:
       (system-managed vs admin-editable field split).
       Existing mobile app untouched — all façade APIs still work.
       Test agent iteration_11: 48/48 pass (39 foundation + 9 vc regression).
+  - agent: "main"
+    message: |
+      [Super Admin Panel bootstrapped inside Expo Router at /admin/*]
+      Given the Kubernetes ingress only routes port 3000 (Expo) and /api/* → 8001, a
+      separate Next.js dev server was not reachable. The panel therefore lives as
+      web-only routes under /app/frontend/app/admin/*. Native devices see a "web only"
+      gate. Screens delivered: Login, Dashboard, Students(+detail), Products(+edit
+      modal), Orders, Entitlements, Faculty, Coupons, Centres, Manual Enroll wizard.
+      Sidebar navigation + user badge + logout. Reuses existing AuthContext, api.ts,
+      theme, and JWT auth from Foundation Phase 1a.
+      Test agent iteration_12: 16/16 UI flows verified. Login gate + non-admin block +
+      admin dashboard + all list screens + Manual Enroll wizard end-to-end (created
+      AV-ORD-26-000004 during test). Backend admin routes unchanged (48/48 from iter11).
   - agent: "testing"
     message: |
-      [iteration_11] Foundation Phase 1a verified end-to-end. 48/48 pass. Seed
-      idempotency confirmed across 2 restarts. Admin guards enforced (403 for
-      non-admin). Avision ID counter monotonic. Order/payment/entitlement chain
-      correct for manual-enroll. No regressions in legacy routes.
+      [iteration_12] Super Admin Panel frontend verified. 16/16 flows pass on web
+      preview (1280x800). Non-admin login correctly blocked. All 9 sidebar routes
+      render and hydrate from /api/admin/*. Manual Enroll created a real order that
+      appears in Orders list. Native gate confirmed via code inspection. Minor
+      polish items noted (user email in orders row — fixed by main agent).

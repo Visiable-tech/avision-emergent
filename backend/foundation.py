@@ -632,6 +632,14 @@ async def admin_update_product(pid: str, body: dict, user=Depends(get_admin_user
 async def admin_list_orders(limit: int = 50, skip: int = 0, user=Depends(get_admin_user)):
     total = await _db.orders.count_documents({})
     docs = await _db.orders.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    # attach lightweight user summary
+    uids = list({d.get("user_id") for d in docs if d.get("user_id")})
+    users = {}
+    if uids:
+        async for u in _db.users.find({"user_id": {"$in": uids}}, {"_id": 0, "user_id": 1, "name": 1, "email": 1, "avision_id": 1}):
+            users[u["user_id"]] = u
+    for d in docs:
+        d["user"] = users.get(d.get("user_id"))
     return {"orders": docs, "total": total}
 
 

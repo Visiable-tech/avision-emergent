@@ -40,7 +40,10 @@ export default function AdminOrders() {
         ) : rows.map((r) => (
           <View key={r.id} style={s.row}>
             <Text style={[s.cell, { flex: 1.6, fontWeight: '900', color: theme.colors.brand, fontSize: 11 }]}>{r.avision_order_id}</Text>
-            <Text style={[s.cell, { flex: 1.4 }]} numberOfLines={1}>{r.user_id}</Text>
+            <View style={[s.cell, { flex: 1.4 }]}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: theme.colors.onSurface }} numberOfLines={1}>{r.user?.name || r.user_id}</Text>
+              {r.user?.email ? <Text style={{ fontSize: 10.5, color: theme.colors.muted, fontWeight: '700', marginTop: 1 }} numberOfLines={1}>{r.user.email}</Text> : null}
+            </View>
             <View style={[s.cell, { flex: 2 }]}>
               {(r.items || []).map((it: any, i: number) => (
                 <Text key={i} style={{ fontSize: 12, color: theme.colors.onSurface, fontWeight: '700' }} numberOfLines={1}>{it.product_id} • ₹{it.price}</Text>
