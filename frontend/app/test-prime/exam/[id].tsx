@@ -23,13 +23,15 @@ const CATEGORY_META: {
   label: string;
   matchTypes: string[];
   color: string;
+  routeType: string;
+  stageLabel: string;
 }[] = [
-  { key: 'prelims', label: 'Full Length Mocks-Prelims', matchTypes: ['full-mock'], color: '#7C3AED' },
-  { key: 'mains', label: 'Full Length Mocks-Mains', matchTypes: ['full-mock'], color: '#B45309' },
-  { key: 'sectional', label: 'Sectional Mocks', matchTypes: ['sectional'], color: '#CA8A04' },
-  { key: 'topic', label: 'Topic Wise Mocks', matchTypes: ['topic', 'subject'], color: '#10B981' },
-  { key: 'memory', label: 'Memory Based Mocks', matchTypes: ['memory-based', 'special'], color: '#DB2777' },
-  { key: 'pyq', label: 'Previous Year Paper', matchTypes: ['pyq'], color: '#7C3AED' },
+  { key: 'prelims', label: 'Full Length Mocks-Prelims', matchTypes: ['full-mock'], color: '#7C3AED', routeType: 'full-mock-prelims', stageLabel: 'PRELIMS' },
+  { key: 'mains', label: 'Full Length Mocks-Mains', matchTypes: ['full-mock'], color: '#B45309', routeType: 'full-mock-mains', stageLabel: 'MAINS' },
+  { key: 'sectional', label: 'Sectional Mocks', matchTypes: ['sectional'], color: '#CA8A04', routeType: 'sectional', stageLabel: 'SECTIONAL' },
+  { key: 'topic', label: 'Topic Wise Mocks', matchTypes: ['topic', 'subject'], color: '#10B981', routeType: 'topic', stageLabel: 'TOPIC' },
+  { key: 'memory', label: 'Memory Based Mocks', matchTypes: ['memory-based', 'special'], color: '#DB2777', routeType: 'memory-based', stageLabel: 'MEMORY' },
+  { key: 'pyq', label: 'Previous Year Paper', matchTypes: ['pyq'], color: '#7C3AED', routeType: 'pyq', stageLabel: 'PYQ' },
 ];
 
 export default function TestPrimeExamDetail() {
@@ -216,10 +218,27 @@ export default function TestPrimeExamDetail() {
 
         {/* ================= WHAT YOU'LL GET ================= */}
         <View style={{ marginTop: 26 }}>
-          <Text style={s.sectionTitle}>What You'll Get</Text>
+          <Text style={s.sectionTitle}>What You{"'"}ll Get</Text>
           <View style={s.grid}>
             {categoryStats.map((c) => (
-              <View key={c.key} style={s.gridCard}>
+              <Pressable
+                key={c.key}
+                onPress={() =>
+                  router.push({
+                    pathname: '/test-prime/list',
+                    params: {
+                      exam: exam.id,
+                      type: c.routeType,
+                      title: c.label,
+                      subtitle: `${exam.name} • ${c.count} tests`,
+                      stage: c.stageLabel,
+                      color: c.color,
+                    },
+                  } as any)
+                }
+                style={({ pressed }) => [s.gridCard, pressed && s.gridCardPressed]}
+                testID={`tpex-cat-${c.key}`}
+              >
                 <Text style={s.gridLabel} numberOfLines={2}>{c.label}</Text>
                 <View style={s.gridBottomRow}>
                   {!isPrime ? (
@@ -233,7 +252,7 @@ export default function TestPrimeExamDetail() {
                   )}
                   <Text style={[s.gridCount, { color: c.color }]}>{c.count}</Text>
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
         </View>
@@ -397,6 +416,7 @@ const s = StyleSheet.create({
       android: { elevation: 1 },
     }),
   },
+  gridCardPressed: { transform: [{ scale: 0.98 }], opacity: 0.94 },
   gridLabel: { fontSize: 15, fontWeight: '700', color: '#334155', lineHeight: 20 },
   gridBottomRow: {
     flexDirection: 'row',

@@ -579,39 +579,68 @@ export default function TestPrimeLanding() {
 
       {/* ==================== STICKY BOTTOM BAR ==================== */}
       {!!selectedPlan && (
-        <View style={[s.stickyBar, { paddingBottom: 12 + insets.bottom }]}>
-          <View style={s.planTopRow}>
-            <Text style={s.planLbl}>Our Plans</Text>
-            <Pressable
-              onPress={() => setPlanPickerOpen(true)}
-              style={s.planPicker}
-              testID="tp-plan-picker"
-            >
-              <Text style={s.planPickerTxt}>{selectedPlan.label}</Text>
-              <Ionicons name="chevron-down" size={14} color="#0F172A" />
-            </Pressable>
-          </View>
-          <View style={s.planBottomRow}>
-            <View style={{ flexShrink: 1 }}>
-              <View style={s.priceRow}>
-                <Text style={s.price}>₹{selectedPlan.price}</Text>
+        <View style={[s.stickyBar, { paddingBottom: 10 + insets.bottom }]}>
+          <LinearGradient
+            colors={['#0B1F4A', '#1E3A8A', '#312E81']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.stickyGrad}
+          >
+            {/* subtle premium overlay */}
+            <View style={s.premiumGlow} />
+            <View style={s.stickyRow}>
+              <View style={{ flex: 1 }}>
+                <View style={s.planTopRow}>
+                  <View style={s.planIconRing}>
+                    <MaterialCommunityIcons name="crown" size={13} color="#FCD34D" />
+                  </View>
+                  <Text style={s.planLbl}>Our Plans</Text>
+                  <Pressable
+                    onPress={() => setPlanPickerOpen(true)}
+                    style={s.planPicker}
+                    testID="tp-plan-picker"
+                  >
+                    <Text style={s.planPickerTxt}>{selectedPlan.label}</Text>
+                    <Ionicons name="chevron-down" size={12} color="#FFF" />
+                  </Pressable>
+                </View>
+
+                <View style={s.priceRow}>
+                  <Text style={s.price}>₹{selectedPlan.price}</Text>
+                  <View style={s.mrpCol}>
+                    <Text style={s.mrp}>₹{selectedPlan.mrp}</Text>
+                    <View style={s.discountPill}>
+                      <MaterialCommunityIcons name="fire" size={10} color="#065F46" />
+                      <Text style={s.discountTxt}>{selectedPlan.discount_pct}% OFF</Text>
+                    </View>
+                  </View>
+                </View>
+
                 <Pressable style={s.moreOffersBtn}>
-                  <Text style={s.moreOffersTxt}>MORE OFFERS</Text>
+                  <MaterialCommunityIcons name="tag-multiple" size={10} color="#FCD34D" />
+                  <Text style={s.moreOffersTxt}>MORE OFFERS AVAILABLE</Text>
                 </Pressable>
               </View>
-              <View style={s.priceMetaRow}>
-                <Text style={s.mrp}>₹{selectedPlan.mrp.toFixed(1)}</Text>
-                <Text style={s.discount}>({selectedPlan.discount_pct}% off)</Text>
-              </View>
+
+              <Pressable
+                style={({ pressed }) => [s.choosePlanWrap, pressed && s.choosePlanPressed]}
+                onPress={() => setChoosePlanOpen(true)}
+                testID="tp-choose-plan"
+              >
+                <LinearGradient
+                  colors={['#F59E0B', '#F97316', '#EA580C']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={s.choosePlanBtn}
+                >
+                  <Text style={s.choosePlanTxt}>{isPrime ? 'RENEW' : 'BUY NOW'}</Text>
+                  <View style={s.chooseArrow}>
+                    <Ionicons name="arrow-forward" size={14} color="#EA580C" />
+                  </View>
+                </LinearGradient>
+              </Pressable>
             </View>
-            <Pressable
-              style={s.choosePlanBtn}
-              onPress={() => setChoosePlanOpen(true)}
-              testID="tp-choose-plan"
-            >
-              <Text style={s.choosePlanTxt}>{isPrime ? 'RENEW PLAN' : 'CHOOSE PLAN'}</Text>
-            </Pressable>
-          </View>
+          </LinearGradient>
         </View>
       )}
 
@@ -990,60 +1019,123 @@ const s = StyleSheet.create({
   quickLinkTitle: { fontSize: 13, fontWeight: '900', color: '#0F172A' },
   quickLinkSub: { fontSize: 10.5, fontWeight: '600', color: '#64748B', marginTop: 2 },
 
-  // Sticky bar
+  // Sticky bar (premium redesign)
   stickyBar: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#FFF',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#EEF2F7',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    backgroundColor: 'transparent',
+  },
+  stickyGrad: {
+    borderRadius: 20,
+    padding: 16,
+    position: 'relative',
+    overflow: 'hidden',
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.08, shadowOffset: { width: 0, height: -4 }, shadowRadius: 10 },
-      android: { elevation: 12 },
+      ios: { shadowColor: '#1E3A8A', shadowOpacity: 0.32, shadowOffset: { width: 0, height: 10 }, shadowRadius: 20 },
+      android: { elevation: 14 },
     }),
   },
-  planTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  planLbl: { fontSize: 12.5, fontWeight: '700', color: '#64748B' },
+  premiumGlow: {
+    position: 'absolute',
+    top: -80,
+    right: -60,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(252,211,77,0.15)',
+  },
+  stickyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  planTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  planIconRing: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(252,211,77,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(252,211,77,0.4)',
+  },
+  planLbl: { fontSize: 11.5, fontWeight: '700', color: 'rgba(255,255,255,0.85)', letterSpacing: 0.4 },
   planPicker: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  planPickerTxt: { fontSize: 12, fontWeight: '900', color: '#0F172A' },
-  planBottomRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  price: { fontSize: 22, fontWeight: '900', color: '#0F172A' },
-  moreOffersBtn: {
-    borderWidth: 1,
-    borderColor: '#93C5FD',
-    borderRadius: 6,
+    gap: 3,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     paddingHorizontal: 8,
     paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
   },
-  moreOffersTxt: { color: '#2563EB', fontSize: 9.5, fontWeight: '900', letterSpacing: 0.4 },
-  priceMetaRow: { flexDirection: 'row', gap: 6, marginTop: 2 },
-  mrp: { fontSize: 11, color: '#94A3B8', textDecorationLine: 'line-through', fontWeight: '600' },
-  discount: { fontSize: 11, color: '#059669', fontWeight: '800' },
-  choosePlanBtn: {
-    marginLeft: 'auto',
-    backgroundColor: '#DC2626',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
+  planPickerTxt: { fontSize: 11, fontWeight: '900', color: '#FFF' },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 6 },
+  price: {
+    fontSize: 30,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: -0.5,
     ...Platform.select({
-      ios: { shadowColor: '#DC2626', shadowOpacity: 0.28, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
-      android: { elevation: 3 },
+      ios: { textShadowColor: 'rgba(252,211,77,0.35)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 12 },
+      android: {},
     }),
   },
-  choosePlanTxt: { color: '#FFF', fontSize: 13, fontWeight: '900', letterSpacing: 0.6 },
+  mrpCol: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  mrp: { fontSize: 12, color: 'rgba(255,255,255,0.55)', textDecorationLine: 'line-through', fontWeight: '700' },
+  discountPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#A7F3D0',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  discountTxt: { color: '#065F46', fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
+  moreOffersBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    backgroundColor: 'rgba(252,211,77,0.15)',
+    borderRadius: 6,
+  },
+  moreOffersTxt: { color: '#FCD34D', fontSize: 9.5, fontWeight: '900', letterSpacing: 0.5 },
+  choosePlanWrap: {
+    borderRadius: 999,
+    ...Platform.select({
+      ios: { shadowColor: '#F97316', shadowOpacity: 0.5, shadowOffset: { width: 0, height: 6 }, shadowRadius: 14 },
+      android: { elevation: 6 },
+    }),
+  },
+  choosePlanPressed: {
+    transform: [{ scale: 0.96 }],
+    opacity: 0.94,
+  },
+  choosePlanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 999,
+  },
+  choosePlanTxt: { color: '#FFF', fontSize: 14, fontWeight: '900', letterSpacing: 0.8 },
+  chooseArrow: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   // Modal / sheet
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
