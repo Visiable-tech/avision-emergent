@@ -128,7 +128,8 @@ ENTITY_REGISTRY: dict[str, dict] = {
         "search_fields": ["text", "subject", "topic"],
         "fields": ["text", "options", "correct", "explanation",
                    "subject", "topic", "difficulty", "exam_ids",
-                   "language", "marks", "negative_marks", "active"],
+                   "language", "marks", "negative_marks",
+                   "display_order", "active"],
         "required": ["text", "options"],
     },
     "study_material_v2": {
@@ -269,7 +270,7 @@ ENTITY_REGISTRY: dict[str, dict] = {
         "fields": ["name", "code", "type", "franchise_id",
                    "city", "state", "pincode", "address", "phone",
                    "manager_name", "manager_email", "seats", "opened_at",
-                   "status", "notes", "active"],
+                   "status", "notes", "display_order", "active"],
         "required": ["name"],
     },
 }
