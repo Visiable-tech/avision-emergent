@@ -220,6 +220,26 @@ export const api = {
       req('/admin/centres', { method: 'POST', body: JSON.stringify(body) }, true),
     enroll: (body: { user_id: string; product_id: string; amount_inr: number; method: string; note?: string; centre_id?: string; counsellor_id?: string }) =>
       req('/admin/enroll', { method: 'POST', body: JSON.stringify(body) }, true),
+    // CMS generic entity CRUD
+    cmsEntities: () => req('/admin/cms/entities', undefined, true),
+    cmsList: (entity: string, opts: { q?: string; limit?: number; skip?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (opts.q) p.set('q', opts.q);
+      p.set('limit', String(opts.limit ?? 50));
+      p.set('skip', String(opts.skip ?? 0));
+      return req(`/admin/cms/${entity}?${p.toString()}`, undefined, true);
+    },
+    cmsGet: (entity: string, id: string) => req(`/admin/cms/${entity}/${id}`, undefined, true),
+    cmsCreate: (entity: string, body: any) =>
+      req(`/admin/cms/${entity}`, { method: 'POST', body: JSON.stringify(body) }, true),
+    cmsUpdate: (entity: string, id: string, body: any) =>
+      req(`/admin/cms/${entity}/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, true),
+    cmsDelete: (entity: string, id: string) =>
+      req(`/admin/cms/${entity}/${id}`, { method: 'DELETE' }, true),
+    // Reports
+    reportsIndex: () => req('/admin/reports', undefined, true),
+    report: (slug: string, range: string = '30d') =>
+      req(`/admin/reports/${slug}?range=${range}`, undefined, true),
   },
   examInfo: (category?: string) =>
     req(`/exam-info${category ? `?category=${encodeURIComponent(category)}` : ''}`),
@@ -426,4 +446,19 @@ export const api = {
     req('/auth/update-category', { method: 'POST', body: JSON.stringify({ category_id, selected_exam_id }) }, true),
   updateLanguage: (language: string) =>
     req('/auth/update-language', { method: 'POST', body: JSON.stringify({ language }) }, true),
+
+  adminExtra: {
+    createProduct: (body: any) =>
+      req('/admin/products', { method: 'POST', body: JSON.stringify(body) }, true),
+    deleteProduct: (pid: string) =>
+      req(`/admin/products/${pid}`, { method: 'DELETE' }, true),
+    payments: (limit = 100, skip = 0) =>
+      req(`/admin/payments?limit=${limit}&skip=${skip}`, undefined, true),
+    systemStatus: () => req('/admin/system/status', undefined, true),
+    databaseOverview: () => req('/admin/system/database', undefined, true),
+    integrationTests: () => req('/admin/system/integration-tests', undefined, true),
+  },
+
+  heartbeat: (client: 'student_app' | 'website' | 'super_admin', version = '1.0.0') =>
+    req('/heartbeat', { method: 'POST', body: JSON.stringify({ client, version }) }),
 };

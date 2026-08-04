@@ -2,12 +2,22 @@ import { Tabs } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEffect } from 'react';
 import { theme } from '@/src/theme';
 import { useI18n } from '@/src/i18n';
+import { api } from '@/src/api';
 
 export default function TabsLayout() {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
+
+  // Send student_app heartbeat every 60s so Super Admin System Status shows "connected"
+  useEffect(() => {
+    const send = () => { api.heartbeat('student_app', '1.0.0').catch(() => {}); };
+    send();
+    const t = setInterval(send, 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   // Minimum visible bottom padding so labels sit above system nav bar even on
   // devices that report bottom inset = 0 (e.g. some emulators / older Android).

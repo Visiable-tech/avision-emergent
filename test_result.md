@@ -278,10 +278,120 @@ agent_communication:
       Test agent iteration_12: 16/16 UI flows verified. Login gate + non-admin block +
       admin dashboard + all list screens + Manual Enroll wizard end-to-end (created
       AV-ORD-26-000004 during test). Backend admin routes unchanged (48/48 from iter11).
-  - agent: "testing"
+  - agent: "main"
     message: |
-      [iteration_12] Super Admin Panel frontend verified. 16/16 flows pass on web
-      preview (1280x800). Non-admin login correctly blocked. All 9 sidebar routes
-      render and hydrate from /api/admin/*. Manual Enroll created a real order that
-      appears in Orders list. Native gate confirmed via code inspection. Minor
-      polish items noted (user email in orders row — fixed by main agent).
+      [Super Admin — Ops & Verification pack shipped]
+      Extended sidebar with the full requested taxonomy (Identity, Catalog, Commerce,
+      Content&CMS, Ops). New backend endpoints:
+        POST   /api/admin/products          — create new product (proof of one-backend)
+        DELETE /api/admin/products/{id}     — delete admin-created products
+        GET    /api/admin/payments          — unified payments list w/ order summary
+        GET    /api/admin/system/status     — live system health (Frontend + Backend)
+        GET    /api/admin/system/database   — safe entity/collection overview
+        GET    /api/admin/system/integration-tests  — live auth/course/entitlement/progress/test/heartbeat tests
+        POST   /api/heartbeat               — public heartbeat for App/Website/Admin clients
+      Frontend: /admin/settings/{status,database,integration}, /admin/payments,
+      /admin/products (new "New product" modal), stubs for Exams / Question Bank /
+      Study Material / Current Affairs / Banners / Notifications / CMS / Franchise /
+      Reports (all use ComingSoon component with honest blocker list).
+      Heartbeats wired from admin _layout.tsx (super_admin) and (tabs)/_layout.tsx (student_app).
+      Website heartbeat intentionally NOT wired — the staging website is not built yet, so
+      System Status honestly shows "not_connected" for that client.
+      Test: created "AVISION ONE Proof Course" from admin → confirmed same doc appears via
+      public /api/products endpoint (single-backend architecture proven).
+
+  - agent: "main"
+    message: |
+      [AVISION ONE — Phase 1 FINAL Acceptance + Phase 12 CMS suite shipped]
+
+      Phase 1 Final Acceptance:
+        • Legacy modules (live_courses.py, video_courses.py, test_prime.py)
+          refactored to write unified entitlements on every purchase and read
+          them as a fallback for legacy access checks (backward compatible).
+        • Bundle Product support added — one Product with items[] grants entitlements
+          to every child ref_id (course/test/live). Cascade proven end-to-end.
+        • Product visibility split (app / website / admin_only) + full SEO fields
+          (slug, title, desc, keywords).
+        • Golden Path acceptance test: 14/14 PASS
+          (admin auth → student → course → bundle → enroll → mine → LC dash →
+           TP prime → visibility split → payment security → audit trail →
+           system status honesty → VC progress → cleanup).
+        • Full backend regression: 219/219 tests PASS.
+        • /app/memory/AVISION_ONE_PHASE1_ACCEPTANCE.md generated.
+
+      Phase 12 — Super Admin CMS Suite (approved massive scope):
+        • New backend module `avision_cms.py` — generic CRUD engine over
+          20 CMS entities (5 Academic, 5 Learning content, 8 Content mgmt,
+          2 Organisation). Every entity: /api/admin/cms/{entity}/* + optional
+          public /api/cms/{entity}/* with visibility filter.
+        • 11 real-data Reports & Analytics endpoints:
+          students, product_sales, revenue, orders_report, payments_report,
+          course_performance, test_performance, engagement, learning_progress,
+          centre_wise, franchise_wise.
+        • Frontend: generic EntityScreen.tsx + declarative entitySpecs.tsx —
+          each admin route ~2 lines. 20 admin routes shipped; sidebar reorganized
+          into Identity → Academic → Catalog → Learning Content → Commerce →
+          Content & CMS → Analytics & Ops (no "soon" pills left).
+        • Reports dashboard with range selector (today/7d/30d/all).
+        • Idempotent seed of demo data (banners, testimonials, results, FAQs,
+          current affairs, franchises, centres, web/app pages, promo banners).
+        • Backend CMS test suite: 26/26 PASS.
+        • Website heartbeat still "not_connected" — honest system status.
+        • /app/memory/AVISION_ONE_PHASE2_READINESS.md generated.
+
+      Backend ready for Phase 2 avision.co.in without any blocker. Public website
+      frontend intentionally NOT started per user instruction.
+
+backend:
+  - task: "AVISION ONE — unified grant_entitlement + bundle logic + legacy refactor"
+    implemented: true
+    working: true
+    file: "/app/backend/foundation.py, /app/backend/live_courses.py, /app/backend/video_courses.py, /app/backend/test_prime.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "grant_entitlement helper cascades bundles into per-child entitlements. Legacy modules import foundation and call helper on verify_payment / free_enroll / rzp_verify. Legacy access checks fall back to unified entitlements. Verified via 14/14 golden path checks."
+  - task: "AVISION ONE Super Admin CMS suite (20 entities + 11 reports)"
+    implemented: true
+    working: true
+    file: "/app/backend/avision_cms.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Generic CRUD across 20 entities: exam_categories, exams, subjects, chapters, lessons, question_bank, study_material, current_affairs, digital_notes, previous_papers, cms_web_pages, cms_app_pages, banners_home, banners_promo, notifications, testimonials, results, faqs, franchises, centres_v2. Public read APIs respect visibility.{app,website}. 26/26 tests pass; 219 overall backend pass."
+frontend:
+  - task: "Super Admin — 20 CMS routes + Reports dashboard"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/admin/EntityScreen.tsx, /app/frontend/src/admin/entitySpecs.tsx, /app/frontend/app/admin/*"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Generic EntityScreen component drives 20 admin CRUD routes via declarative specs. Reports dashboard with 11 report cards + range selector renders KPIs + tables from real backend data. Sidebar reorganized; no 'soon' pills remain."
+      Extended sidebar with the full requested taxonomy (Identity, Catalog, Commerce,
+      Content&CMS, Ops). New backend endpoints:
+        POST   /api/admin/products          — create new product (proof of one-backend)
+        DELETE /api/admin/products/{id}     — delete admin-created products
+        GET    /api/admin/payments          — unified payments list w/ order summary
+        GET    /api/admin/system/status     — live system health (Frontend + Backend)
+        GET    /api/admin/system/database   — safe entity/collection overview
+        GET    /api/admin/system/integration-tests  — live auth/course/entitlement/progress/test/heartbeat tests
+        POST   /api/heartbeat               — public heartbeat for App/Website/Admin clients
+      Frontend: /admin/settings/{status,database,integration}, /admin/payments,
+      /admin/products (new "New product" modal), stubs for Exams / Question Bank /
+      Study Material / Current Affairs / Banners / Notifications / CMS / Franchise /
+      Reports (all use ComingSoon component with honest blocker list).
+      Heartbeats wired from admin _layout.tsx (super_admin) and (tabs)/_layout.tsx (student_app).
+      Website heartbeat intentionally NOT wired — the staging website is not built yet, so
+      System Status honestly shows "not_connected" for that client.
+      Test: created "AVISION ONE Proof Course" from admin → confirmed same doc appears via
+      public /api/products endpoint (single-backend architecture proven).

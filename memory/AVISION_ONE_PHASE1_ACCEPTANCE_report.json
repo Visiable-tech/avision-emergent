@@ -1,0 +1,108 @@
+{
+  "rows": [
+    {
+      "check": "Admin auth",
+      "expected": "200 OK on /api/admin/dashboard",
+      "got": "200 \u2014 ['users', 'active_users', 'products', 'active_products']",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "Create student",
+      "expected": "New user with avision_id + roles=[student]",
+      "got": "avision_id=AV26-000122 roles=['student']",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "Create product (Course)",
+      "expected": "Product row w/ slug+seo+visibility",
+      "got": "id=gp-course-510bd50f slug=golden-path-test-course-510bd50f seo=True",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "Create bundle product",
+      "expected": "Bundle w/ items[2] (course+test)",
+      "got": "id=gp-bundle-510bd50f items=2",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "Manual enroll (bundle)",
+      "expected": "Order + 1 primary entitlement + 2 bundle child entitlements",
+      "got": "order=AV-ORD-26-000023 primary_ent=gp-bundle-510bd50f children=['gp-course-510bd50f', 'tp-plan-12m']",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "Entitlements /mine",
+      "expected": "Student sees bundle + course + tp-plan-12m",
+      "got": "got=['gp-bundle-510bd50f', 'gp-course-510bd50f', 'tp-plan-12m'] missing=[]",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "LC dashboard unlocks via entitlement",
+      "expected": "200 after admin manual enroll",
+      "got": "200",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "TP is_prime via bundle unlock",
+      "expected": "is_prime=True after bundle enroll",
+      "got": "is_prime=True plan=Test Prime",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "Product visibility (app/website split)",
+      "expected": "Product visible on app, hidden from website after toggle",
+      "got": "visible_app=True hidden_web=True",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "Server-side payment signature required",
+      "expected": "400/404 (never grants entitlement w/o valid signature)",
+      "got": "404",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "Unified orders+payments audit trail",
+      "expected": "\u22652 orders + \u22652 payments for our student",
+      "got": "orders=2 payments=2",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "System status honesty",
+      "expected": "website=not_connected (not yet built)",
+      "got": "status=not_connected",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "VC progress via unified entitlement",
+      "expected": "200 after admin manual enroll",
+      "got": "200",
+      "status": "PASS",
+      "evidence": ""
+    },
+    {
+      "check": "Cleanup admin-created test products",
+      "expected": "204/200 on delete",
+      "got": "bundle=200 course=200",
+      "status": "PASS",
+      "evidence": ""
+    }
+  ],
+  "summary": {
+    "total": 14,
+    "pass": 14,
+    "fail": 0,
+    "overall": "PASS"
+  }
+}

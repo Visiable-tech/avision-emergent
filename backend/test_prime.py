@@ -5,6 +5,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import uuid
 
+try:
+    import foundation as _foundation
+except Exception:  # pragma: no cover
+    _foundation = None
+
 _db = None
 
 
@@ -323,10 +328,40 @@ TESTS = _generate_seed_tests()
 # Course purchase unlocks only that exam's tests.
 
 async def _get_entitlement(user_id: Optional[str]) -> dict:
-    """Return the user's Test-Prime entitlement snapshot."""
+    """Return the user's Test-Prime entitlement snapshot.
+    Also honors the unified `entitlements` collection — any active
+    entitlement for a `tp-plan-*` product grants is_prime=True.
+    """
     if not user_id:
         return {"is_prime": False, "unlocked_exams": [], "unlocked_categories": [], "plan": None, "expires_at": None}
     doc = await _db.tp_entitlements.find_one({"user_id": user_id}, {"_id": 0})
+    # Check unified entitlements
+    unified = None
+    try:
+        unified = await _db.entitlements.find_one({
+            "user_id": user_id,
+            "product_id": {"$regex": "^tp-plan-"},
+            "active": True,
+        }, {"_id": 0}, sort=[("granted_at", -1)])
+    except Exception:
+        unified = None
+    if unified:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        exp = unified.get("expires_at")
+        if not exp or exp > now_iso:
+            # Promote/refresh legacy doc for backward-compat readers
+            promoted = {
+                "user_id": user_id,
+                "is_prime": True,
+                "plan": "Test Prime",
+                "activated_at": unified.get("granted_at"),
+                "expires_at": exp,
+                "unlocked_exams": (doc or {}).get("unlocked_exams") or [],
+                "unlocked_categories": (doc or {}).get("unlocked_categories") or [],
+                "source": unified.get("source"),
+                "order_id": unified.get("order_id"),
+            }
+            return promoted
     if not doc:
         return {"is_prime": False, "unlocked_exams": [], "unlocked_categories": [], "plan": None, "expires_at": None}
     return doc
@@ -1371,6 +1406,21 @@ async def rzp_verify(user_id: str, body: dict):
     ent["activated_at"] = now.isoformat()
     await _db.tp_entitlements.update_one({"user_id": user_id}, {"$set": ent}, upsert=True)
     ent.pop("_id", None)
+
+    # ---- AVISION ONE unified entitlement grant ----
+    if _foundation is not None:
+        try:
+            plan_id = stored.get("plan_id")
+            pid = f"tp-plan-{plan_id}"
+            await _foundation.grant_entitlement(
+                user_id=user_id, product_id=pid,
+                source="online", amount_inr=int(stored.get("amount_paise", 0)) // 100,
+                method="razorpay", gateway_order_id=order_id,
+                gateway_payment_id=payment_id, note="tp_verify_payment",
+                validity_days_override=days, channel="online",
+            )
+        except Exception as e:  # pragma: no cover
+            print("tp.verify grant_entitlement:", e)
     return {"verified": True, "entitlement": ent}
 
 

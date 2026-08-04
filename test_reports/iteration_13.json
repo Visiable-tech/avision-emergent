@@ -1,0 +1,43 @@
+{
+  "summary": "Full backend + frontend acceptance for AVISION ONE Super Admin CMS Suite. Backend: 47/47 pytest cases pass — 27 in existing test_cms_suite.py + 14 golden-path checks + 20 in new test_cms_extended.py (covers CRUD for the 12 entities missed by the existing parametrize, website/app visibility filter, inactive-hidden guard, foundation regression, validation). Frontend: admin login works, sidebar contains every section (Identity, Academic, Catalog, Learning Content, Content Mgmt, Organisation, Reports) with NO 'soon' pills, /admin/testimonials + /admin/banners + /admin/faqs + /admin/reports all load real seed data, and end-to-end 'New Testimonial' create-flow via the UI succeeded (row visible in list immediately). All 11 reports return 200 with proper shape. Public /api/cms/testimonials?client=website vs ?client=app visibility split works. /api/cms/question_bank correctly returns 404 (not public). Auth guards (401 no-token, 403 non-admin) work.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/admin/cms/question_bank & /api/admin/cms/centres_v2", "issue": "'display_order' is not in the allowed fields list for these two entities, so PATCH {display_order:N} returns 400 'Nothing to update'. All 18 other entities include it. Consider adding for consistency + stable ordering."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "EntityScreen.tsx (Btn / TextInput)", "issue": "No testID attributes on the New/Create/Save/Delete/Edit buttons or form fields. Automation had to fall back to text-based get_by_text('New')/get_by_text('Create') selectors — brittle. Recommend testID='cms-new-btn', 'cms-create-btn', 'cms-save-btn', 'cms-delete-btn', and per-field testID={`cms-field-${field.name}`}. Reference: /app/frontend/src/admin/EntityScreen.tsx:119, 201."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cms_suite.py",
+    "/app/backend/tests/test_cms_extended.py",
+    "/app/backend/tests/test_golden_path.py",
+    "/app/test_reports/pytest/pytest_iter13_cms.xml",
+    "/app/test_reports/pytest/pytest_iter13_cms_ext.xml"
+  ],
+  "action_items": [
+    "(Optional/minor) Add 'display_order' to fields list of question_bank and centres_v2 in ENTITY_REGISTRY (avision_cms.py) for consistency with the other 18 entities.",
+    "(Testability) Add testID attributes to Btn (label='New'/'Create'/'Save changes'/etc.) and to each form field inside EntityScreen.tsx so future automation doesn't rely on text.",
+    "No blocking issues — feature is production-shape green."
+  ],
+  "critical_code_review_comments": [
+    "avision_cms.py is 895 lines — approaching the 700-line threshold. Consider splitting REPORTS section into avision_reports.py (each `if slug == ...` block into a dispatch dict) once more reports are added.",
+    "In _list_entity the .to_list(limit) argument is redundant with .limit(limit); harmless but non-idiomatic.",
+    "_slugify does not guarantee ASCII/URL-safety for non-Latin titles — fine for current scope but flag if the CMS accepts Bengali/Hindi titles later."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cms_extended.py (new file — 20 additional tests)"
+  ],
+  "success_rate": {"backend": "100% (47/47)", "frontend": "100% (all 4 pages + E2E create verified)"},
+  "seed_data_creation": "None persisted — all test data auto-cleaned in fixtures (delete after create). One residual UI-created testimonial ('UI-Test-1785859290') left from the manual smoke and can be removed by admin if desired.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend has full CMS coverage now: test_cms_suite.py (27) + test_cms_extended.py (20) + test_golden_path.py (14). Run all with: cd /app/backend && TEST_BASE=<preview-url> python -m pytest tests/test_cms_suite.py tests/test_cms_extended.py tests/test_golden_path.py -v. Login button on /admin/login is labeled 'Sign in to Admin' (not 'Login'). Search box shares the input pool so filter it out before targeting modal fields.",
+  "rca_of_issue": "n/a — no bugs to root-cause. Two intermediate test failures during extended-suite drafting were caused by my own choice of a non-universal PATCH field (display_order); corrected by patching {active:false} instead. Root cause of that inconsistency logged as a minor backend action item."
+}

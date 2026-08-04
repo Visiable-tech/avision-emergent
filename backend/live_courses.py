@@ -28,6 +28,10 @@ except Exception:  # pragma: no cover
     _razorpay = None
 
 from auth import get_current_user, get_optional_user
+try:
+    import foundation as _foundation
+except Exception:  # pragma: no cover
+    _foundation = None
 
 
 # ------------------------ SEED DATA ---------------------------
@@ -383,6 +387,46 @@ async def ensure_live_courses_indexes(db):
     await db.lc_orders.create_index("order_id", unique=True)
 
 
+async def _resolve_enrollment(user_id: str, cid: str, course: dict) -> Optional[dict]:
+    """Return an lc_enrollments doc for (user_id, cid). If none exists but the
+    user holds a unified entitlement for this course (e.g. from admin manual
+    enroll or bundle unlock), synthesize a minimal virtual enrollment so
+    the legacy dashboard keeps working."""
+    if _db is None:
+        return None
+    doc = await _db.lc_enrollments.find_one(
+        {"user_id": user_id, "course_id": cid}, {"_id": 0}
+    )
+    if doc:
+        return doc
+    # Fallback to unified entitlement
+    if _foundation is not None:
+        try:
+            ok = await _foundation.has_access(user_id, cid)
+        except Exception:
+            ok = False
+        if ok:
+            now = datetime.now(timezone.utc)
+            validity_days = int(course.get("validity_months", 12)) * 30
+            synth = {
+                "id": str(uuid.uuid4()),
+                "user_id": user_id, "course_id": cid,
+                "course_name": course.get("name"),
+                "enrolled_at": now.isoformat(),
+                "expires_at": (now + timedelta(days=validity_days)).isoformat(),
+                "progress_pct": 0, "amount_paid_paise": 0,
+                "status": "active", "note": "entitlement_synth",
+            }
+            # Persist so subsequent progress updates work
+            await _db.lc_enrollments.update_one(
+                {"user_id": user_id, "course_id": cid},
+                {"$setOnInsert": synth},
+                upsert=True,
+            )
+            return synth
+    return None
+
+
 # ------------------ RAZORPAY ------------------
 
 _RZP_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
@@ -596,6 +640,19 @@ async def verify_payment(cid: str, body: dict, user=Depends(get_current_user)):
     }
     await _db.lc_enrollments.insert_one(enrollment)
     enrollment.pop("_id", None)
+
+    # ---- AVISION ONE unified entitlement grant ----
+    if _foundation is not None:
+        try:
+            await _foundation.grant_entitlement(
+                user_id=user["user_id"], product_id=cid,
+                source="online", amount_inr=int(stored.get("amount_paise", 0)) // 100,
+                method="razorpay", gateway_order_id=order_id,
+                gateway_payment_id=payment_id, note="lc_verify_payment",
+                validity_days_override=validity_days, channel="online",
+            )
+        except Exception as e:  # pragma: no cover
+            print("lc.verify grant_entitlement:", e)
     return {"verified": True, "enrollment": enrollment}
 
 
@@ -630,6 +687,17 @@ async def enroll_free(cid: str, user=Depends(get_current_user)):
     }
     await _db.lc_enrollments.insert_one(doc)
     doc.pop("_id", None)
+
+    if _foundation is not None:
+        try:
+            await _foundation.grant_entitlement(
+                user_id=user["user_id"], product_id=cid,
+                source="free_demo", amount_inr=0, method="free",
+                note="lc_free_enroll", validity_days_override=validity_days,
+                channel="online",
+            )
+        except Exception as e:  # pragma: no cover
+            print("lc.free grant_entitlement:", e)
     return {"enrollment": doc}
 
 
@@ -869,7 +937,7 @@ async def learning_dashboard(cid: str, user=Depends(get_current_user)):
     course = next((c for c in COURSES if c["id"] == cid and c.get("status") == "active"), None)
     if not course:
         raise HTTPException(404, "Course not found")
-    enrollment = await _db.lc_enrollments.find_one({"user_id": user["user_id"], "course_id": cid}, {"_id": 0})
+    enrollment = await _resolve_enrollment(user["user_id"], cid, course)
     if not enrollment:
         raise HTTPException(403, "Not enrolled in this course")
     return _dashboard_payload(course, enrollment, user["user_id"])
@@ -882,7 +950,10 @@ async def update_progress(cid: str, body: dict, user=Depends(get_current_user)):
                    streak_days}. Values are added atomically."""
     if _db is None:
         raise HTTPException(500, "Not initialised")
-    e = await _db.lc_enrollments.find_one({"user_id": user["user_id"], "course_id": cid}, {"_id": 0})
+    course = next((c for c in COURSES if c["id"] == cid), None)
+    if not course:
+        raise HTTPException(404, "Course not found")
+    e = await _resolve_enrollment(user["user_id"], cid, course)
     if not e:
         raise HTTPException(403, "Not enrolled")
     state = e.get("progress_state") or {}
@@ -918,7 +989,7 @@ async def session_detail(sid: str, user=Depends(get_current_user)):
     if not course:
         raise HTTPException(404, "Course not found")
     if _db is not None:
-        e = await _db.lc_enrollments.find_one({"user_id": user["user_id"], "course_id": course["id"]})
+        e = await _resolve_enrollment(user["user_id"], course["id"], course)
         if not e:
             raise HTTPException(403, "Not enrolled in this course")
     return {
@@ -940,7 +1011,7 @@ async def course_analytics(cid: str, user=Depends(get_current_user)):
     course = next((c for c in COURSES if c["id"] == cid and c.get("status") == "active"), None)
     if not course:
         raise HTTPException(404, "Course not found")
-    enrollment = await _db.lc_enrollments.find_one({"user_id": user["user_id"], "course_id": cid}, {"_id": 0})
+    enrollment = await _resolve_enrollment(user["user_id"], cid, course)
     if not enrollment:
         raise HTTPException(403, "Not enrolled in this course")
 

@@ -78,6 +78,13 @@ from foundation import (
     router as foundation_router,
     admin_router as foundation_admin_router,
 )
+from avision_cms import (
+    init_cms,
+    ensure_cms_indexes,
+    seed_cms_starter,
+    router as cms_router,
+    admin_router as cms_admin_router,
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -107,6 +114,7 @@ init_study_materials(db)
 init_ai_doubt(db)
 init_video_courses(db)
 init_foundation(db)
+init_cms(db)
 
 
 def _get_courses():
@@ -131,6 +139,8 @@ app.include_router(ai_doubt_router)
 app.include_router(video_courses_router)
 app.include_router(foundation_router)
 app.include_router(foundation_admin_router)
+app.include_router(cms_router)
+app.include_router(cms_admin_router)
 
 
 @app.on_event("startup")
@@ -154,6 +164,9 @@ async def _startup():
     await seed_faculty()
     await seed_coupons()
     await backfill_entitlements()
+    # ---- AVISION ONE CMS suite ----
+    await ensure_cms_indexes(db)
+    await seed_cms_starter(db)
 
 
 # ---------------- Models ----------------

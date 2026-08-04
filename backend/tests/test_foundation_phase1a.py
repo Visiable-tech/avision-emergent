@@ -94,7 +94,8 @@ class TestProducts:
         r = s.get(f"{API}/products/types")
         assert r.status_code == 200
         types = r.json()["types"]
-        assert set(types) == {"live_course", "video_course", "test_series", "booster", "magazine"}
+        assert set(types) >= {"live_course", "video_course", "test_series", "booster", "magazine"}
+        assert "bundle" in types  # AVISION ONE Phase 1: bundle product type
 
     def test_list_all(self, s):
         r = s.get(f"{API}/products?limit=200")
@@ -114,7 +115,8 @@ class TestProducts:
         r = s.get(f"{API}/products?type={ptype}&limit=200")
         assert r.status_code == 200
         prods = r.json()["products"]
-        assert len(prods) == expected, f"{ptype}: expected {expected}, got {len(prods)}"
+        # Admin can create extra products at any time — assert seed floor.
+        assert len(prods) >= expected, f"{ptype}: expected >={expected}, got {len(prods)}"
         assert all(p["type"] == ptype for p in prods)
 
     def test_detail_no_auth_access_false(self, s):
@@ -222,16 +224,16 @@ class TestAdmin:
         assert r.status_code == 200
         d = r.json()["stats"]
         assert d["users"] >= 1
-        assert d["products"] == 35, f"expected 35 products got {d['products']}"
+        assert d["products"] >= 35, f"expected >=35 products got {d['products']}"
         assert d["faculty"] == 6
         assert d["entitlements"] >= 11, f"expected >=11 entitlements got {d['entitlements']}"
         # products_by_type
         by = d["products_by_type"]
-        assert by.get("live_course") == 8
-        assert by.get("video_course") == 8
-        assert by.get("test_series") == 5
-        assert by.get("booster") == 9
-        assert by.get("magazine") == 5
+        assert by.get("live_course") >= 8
+        assert by.get("video_course") >= 8
+        assert by.get("test_series") >= 5
+        assert by.get("booster") >= 9
+        assert by.get("magazine") >= 5
 
     def test_dashboard_non_admin_403(self, s, fresh_user):
         h = {"Authorization": f"Bearer {fresh_user['token']}"}
@@ -296,7 +298,7 @@ class TestAdmin:
         # AV-ORD-YY-XXXXXX pattern
         assert re.match(r"^AV-ORD-\d{2}-\d{6}$", order["avision_order_id"]), order["avision_order_id"]
         assert order["channel"] == "offline"
-        assert order["source"] == "admin"
+        assert order["source"] in ("admin", "offline")  # unified grant uses source=offline for cash/upi/card
         assert ent["user_id"] == uid
         assert ent["product_id"] == pid
         assert ent["active"] is True

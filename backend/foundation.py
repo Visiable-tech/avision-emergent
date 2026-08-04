@@ -111,17 +111,164 @@ async def _gen_avision_order_id() -> str:
 # Access helpers
 # =========================================================================
 async def has_access(user_id: str, product_id: str) -> bool:
+    """True if the user currently holds a valid entitlement for `product_id`
+    (direct) OR is a member of a bundle whose `items[]` includes this ref.
+    """
     if _db is None:
         return False
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # Direct entitlement match
     ent = await _db.entitlements.find_one({
         "user_id": user_id, "product_id": product_id, "active": True,
     }, {"_id": 0})
-    if not ent:
-        return False
-    exp = ent.get("expires_at")
-    if exp and exp < datetime.now(timezone.utc).isoformat():
-        return False
-    return True
+    if ent:
+        exp = ent.get("expires_at")
+        if not exp or exp > now_iso:
+            return True
+
+    # Bundle entitlement — any active bundle product owned by user whose
+    # items[] contains this product_id as a ref_id.
+    async for e in _db.entitlements.find(
+        {"user_id": user_id, "active": True},
+        {"_id": 0, "product_id": 1, "expires_at": 1},
+    ):
+        exp = e.get("expires_at")
+        if exp and exp < now_iso:
+            continue
+        parent = await _db.products.find_one(
+            {"id": e["product_id"], "items.ref_id": product_id},
+            {"_id": 0, "items": 1},
+        )
+        if parent:
+            return True
+    return False
+
+
+async def grant_entitlement(
+    *,
+    user_id: str,
+    product_id: str,
+    source: str,                    # 'online' | 'offline' | 'admin_grant' | 'free_demo' | 'coupon'
+    amount_inr: int = 0,
+    method: str = "razorpay",       # 'razorpay' | 'cash' | 'upi' | 'card' | 'admin_grant' | 'free'
+    gateway_order_id: Optional[str] = None,
+    gateway_payment_id: Optional[str] = None,
+    note: str = "",
+    validity_days_override: Optional[int] = None,
+    channel: str = "online",        # 'online' | 'offline' | 'admin'
+) -> dict:
+    """UNIFIED entitlement grant. Called by every module (lc/vc/tp/admin) after
+    successful purchase/enrollment. Idempotent per (user_id, product_id):
+    creates/updates a matching entitlement, and always writes an audit
+    `orders`+`payments` pair for traceability.
+    Also expands bundles — if the product has `items[]`, an entitlement row is
+    created for each item too (so lecacy access checks work uniformly).
+    Returns {order, payment, entitlement, bundle_grants[]}
+    """
+    if _db is None:
+        raise RuntimeError("foundation not initialised")
+
+    product = await _db.products.find_one({"id": product_id}, {"_id": 0, "meta": 0})
+    if not product:
+        raise ValueError(f"product {product_id} not found")
+
+    now = datetime.now(timezone.utc)
+    validity_days = int(validity_days_override or product.get("validity_days") or 365)
+    expires_at = (now + timedelta(days=validity_days)).isoformat()
+
+    aorder = await _gen_avision_order_id()
+    order_doc = {
+        "id": str(uuid.uuid4()),
+        "avision_order_id": aorder,
+        "user_id": user_id,
+        "items": [{
+            "product_id": product_id,
+            "product_type": product["type"],
+            "price": product.get("offer_price") or product.get("price") or 0,
+        }],
+        "subtotal": amount_inr,
+        "discount_inr": 0,
+        "coupon_code": None,
+        "total": amount_inr,
+        "currency": "INR",
+        "status": "paid" if amount_inr >= 0 else "failed",
+        "source": source,
+        "channel": channel,
+        "gateway_order_id": gateway_order_id,
+        "gateway_payment_id": gateway_payment_id,
+        "note": note,
+        "created_at": now.isoformat(),
+    }
+    await _db.orders.insert_one(order_doc)
+
+    pay_doc = {
+        "id": str(uuid.uuid4()),
+        "order_id": aorder,
+        "gateway": (
+            "razorpay" if method == "razorpay"
+            else ("offline" if method in ("cash", "upi", "card") else method)
+        ),
+        "gateway_order_id": gateway_order_id,
+        "gateway_payment_id": gateway_payment_id,
+        "amount_paise": max(0, amount_inr) * 100,
+        "status": "success",
+        "method": method,
+        "paid_at": now.isoformat(),
+        "verified_at": now.isoformat(),
+    }
+    await _db.payments.insert_one(pay_doc)
+
+    ent_doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "product_id": product_id,
+        "product_type": product["type"],
+        "order_id": aorder,
+        "source": source,
+        "granted_at": now.isoformat(),
+        "expires_at": expires_at,
+        "active": True,
+        "notes": note,
+    }
+    await _db.entitlements.update_one(
+        {"user_id": user_id, "product_id": product_id},
+        {"$set": ent_doc},
+        upsert=True,
+    )
+
+    # Bundle expansion — for each product.items[], create/refresh a per-child
+    # entitlement pointing at the underlying course/test/live id.
+    bundle_grants = []
+    for it in (product.get("items") or []):
+        ref_id = it.get("ref_id")
+        ref_type = it.get("type")
+        if not ref_id or not ref_type:
+            continue
+        child_ent = {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "product_id": ref_id,
+            "product_type": ref_type,
+            "order_id": aorder,
+            "source": f"{source}:bundle:{product_id}",
+            "granted_at": now.isoformat(),
+            "expires_at": expires_at,
+            "active": True,
+            "notes": f"bundle_child_of:{product_id}",
+        }
+        await _db.entitlements.update_one(
+            {"user_id": user_id, "product_id": ref_id},
+            {"$set": child_ent},
+            upsert=True,
+        )
+        bundle_grants.append(child_ent)
+
+    order_doc.pop("_id", None)
+    pay_doc.pop("_id", None)
+    ent_doc.pop("_id", None)
+    return {"order": order_doc, "payment": pay_doc, "entitlement": ent_doc,
+            "bundle_grants": bundle_grants}
 
 
 async def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
@@ -465,7 +612,7 @@ async def backfill_entitlements():
 # =========================================================================
 @router.get("/products/types")
 async def product_types():
-    types = ["live_course", "video_course", "test_series", "booster", "magazine"]
+    types = ["live_course", "video_course", "test_series", "booster", "magazine", "bundle"]
     return {"types": types}
 
 
@@ -474,9 +621,18 @@ async def list_products(
     type: Optional[str] = None,
     category: Optional[str] = None,
     q: Optional[str] = None,
+    client: Optional[str] = Query(None, description="app|website|admin — controls visibility filter"),
     limit: int = Query(50, ge=1, le=200),
 ):
-    q_filter: dict = {"active": True, "visibility.app": True}
+    """List active products. Filters by visibility for the given `client`
+    (app|website|admin). Defaults to `app` for backward-compat."""
+    client_name = (client or "app").lower()
+    q_filter: dict = {"active": True}
+    if client_name == "app":
+        q_filter["visibility.app"] = True
+    elif client_name == "website":
+        q_filter["visibility.website"] = True
+    # admin: no visibility filter
     if type:
         q_filter["type"] = type
     if category:
@@ -680,65 +836,80 @@ async def admin_manual_enroll(body: dict, user=Depends(get_admin_user)):
     if not product:
         raise HTTPException(404, "Product not found")
 
+    source = "offline" if method in ("cash", "upi", "card") else "admin_grant"
+    channel = "offline" if method in ("cash", "upi", "card") else "admin"
+    try:
+        res = await grant_entitlement(
+            user_id=uid,
+            product_id=pid,
+            source=source,
+            amount_inr=amount_inr,
+            method=method,
+            note=body.get("note", ""),
+            channel=channel,
+        )
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+    # Legacy shadow-write for façade backward-compat (so old dashboards keep working)
     now = datetime.now(timezone.utc)
     valid_days = int(product.get("validity_days") or 365)
-    aorder = await _gen_avision_order_id()
-    order_doc = {
-        "id": str(uuid.uuid4()),
-        "avision_order_id": aorder,
-        "user_id": uid,
-        "items": [{"product_id": pid, "product_type": product["type"],
-                   "price": product.get("offer_price") or product.get("price") or 0}],
-        "subtotal": amount_inr,
-        "discount_inr": 0,
-        "coupon_code": None,
-        "total": amount_inr,
-        "currency": "INR",
-        "status": "paid" if amount_inr >= 0 else "failed",
-        "source": "admin",
-        "channel": "offline" if method in ("cash", "upi", "card") else "admin",
-        "centre_id": body.get("centre_id"),
-        "counsellor_id": body.get("counsellor_id"),
-        "note": body.get("note", ""),
-        "created_at": now.isoformat(),
-        "created_by": user["user_id"],
-    }
-    await _db.orders.insert_one(order_doc)
+    expires_at = (now + timedelta(days=valid_days)).isoformat()
+    await _mirror_to_legacy(uid, pid, product, res["order"]["avision_order_id"], expires_at)
 
-    pay_doc = {
-        "id": str(uuid.uuid4()),
-        "order_id": aorder,
-        "gateway": "offline" if method in ("cash", "upi", "card") else "admin_grant",
-        "gateway_order_id": None,
-        "gateway_payment_id": None,
-        "amount_paise": amount_inr * 100,
-        "status": "success" if amount_inr >= 0 else "failed",
-        "method": method,
-        "paid_at": now.isoformat(),
-        "verified_at": now.isoformat(),
+    return {
+        "ok": True,
+        "order": res["order"],
+        "entitlement": res["entitlement"],
+        "bundle_grants": res["bundle_grants"],
     }
-    await _db.payments.insert_one(pay_doc)
 
-    ent_doc = {
-        "id": str(uuid.uuid4()),
-        "user_id": uid,
-        "product_id": pid,
-        "product_type": product["type"],
-        "order_id": aorder,
-        "source": "offline" if method in ("cash", "upi", "card") else "admin_grant",
-        "granted_at": now.isoformat(),
-        "expires_at": (now + timedelta(days=valid_days)).isoformat(),
-        "active": True,
-        "notes": body.get("note", ""),
-    }
-    await _db.entitlements.update_one(
-        {"user_id": uid, "product_id": pid},
-        {"$set": ent_doc},
-        upsert=True,
-    )
-    order_doc.pop("_id", None)
-    ent_doc.pop("_id", None)
-    return {"ok": True, "order": order_doc, "entitlement": ent_doc}
+
+async def _mirror_to_legacy(user_id: str, product_id: str, product: dict,
+                            avision_order_id: str, expires_at: str):
+    """Best-effort shadow-write of admin-granted entitlements into the legacy
+    per-module enrollment tables so pre-refactor dashboards keep working
+    without breaking. Only writes if a legacy row doesn't already exist."""
+    if _db is None:
+        return
+    ptype = product.get("type")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        if ptype == "live_course":
+            existing = await _db.lc_enrollments.find_one({"user_id": user_id, "course_id": product_id})
+            if not existing:
+                await _db.lc_enrollments.insert_one({
+                    "id": str(uuid.uuid4()), "user_id": user_id, "course_id": product_id,
+                    "course_name": product.get("name"), "enrolled_at": now_iso,
+                    "expires_at": expires_at, "progress_pct": 0,
+                    "amount_paid_paise": 0, "order_id": avision_order_id,
+                    "status": "active", "note": "admin_manual_enroll",
+                })
+        elif ptype == "video_course":
+            existing = await _db.vc_enrollments.find_one({"user_id": user_id, "course_id": product_id})
+            if not existing:
+                await _db.vc_enrollments.insert_one({
+                    "id": str(uuid.uuid4()), "user_id": user_id, "course_id": product_id,
+                    "course_name": product.get("name"), "enrolled_at": now_iso,
+                    "expires_at": expires_at, "amount_paid_paise": 0,
+                    "order_id": avision_order_id, "status": "active",
+                    "progress_pct": 0, "videos_watched": 0, "watch_time_hours": 0,
+                    "last_activity_at": now_iso, "note": "admin_manual_enroll",
+                })
+        elif ptype == "test_series":
+            plan_id = product_id.replace("tp-plan-", "") if product_id.startswith("tp-plan-") else "12m"
+            await _db.tp_entitlements.update_one(
+                {"user_id": user_id},
+                {"$set": {
+                    "user_id": user_id, "is_prime": True, "plan": "Test Prime",
+                    "activated_at": now_iso, "expires_at": expires_at,
+                    "unlocked_exams": [], "unlocked_categories": [],
+                    "note": "admin_manual_enroll",
+                }},
+                upsert=True,
+            )
+    except Exception as e:  # pragma: no cover
+        print("mirror_to_legacy:", e)
 
 
 @admin_router.get("/faculty")
@@ -793,3 +964,377 @@ async def admin_set_roles(user_id: str, body: dict, user=Depends(get_admin_user)
     if not res.matched_count:
         raise HTTPException(404, "Student not found")
     return {"ok": True, "user_id": user_id, "roles": roles}
+
+
+# =========================================================================
+# ADMIN — Product Create (proof of app+website+admin single-backend)
+# =========================================================================
+@admin_router.post("/products")
+async def admin_create_product(body: dict, user=Depends(get_admin_user)):
+    """Create a new product manually from Super Admin. This is the endpoint
+    used to prove `create once → display everywhere` across App + Website.
+
+    Supports:
+      - simple product (type=live_course|video_course|test_series|booster|magazine)
+      - bundle (type=bundle) with `items[]`: each item = {type, ref_id}
+      - visibility toggles {app, website, admin_only}
+      - SEO fields {seo.title, seo.desc, seo.keywords, slug, meta_title,
+        meta_description}
+    """
+    ptype = (body.get("type") or "").strip()
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "name required")
+    allowed_types = {"live_course", "video_course", "test_series",
+                     "booster", "magazine", "bundle"}
+    if ptype not in allowed_types:
+        raise HTTPException(400, f"type must be one of {sorted(allowed_types)}")
+
+    # Bundle validation
+    items = body.get("items") or []
+    if ptype == "bundle":
+        if not items or not isinstance(items, list):
+            raise HTTPException(400, "bundle products require non-empty items[]")
+        # verify every ref_id exists
+        for it in items:
+            ref_id = it.get("ref_id")
+            ref_type = it.get("type")
+            if not ref_id or ref_type not in {"live_course", "video_course", "test_series"}:
+                raise HTTPException(400, f"invalid bundle item: {it}")
+            child = await _db.products.find_one({"id": ref_id, "type": ref_type}, {"_id": 0, "id": 1})
+            if not child:
+                raise HTTPException(400, f"bundle item {ref_type}:{ref_id} not found")
+
+    pid = (body.get("id") or "").strip() or f"{ptype}-{_slug(name)}-{uuid.uuid4().hex[:6]}"
+
+    price = int(body.get("price") or 0)
+    offer_price = int(body.get("offer_price") or price)
+    validity_days = int(body.get("validity_days") or 365)
+    category_id = body.get("category_id")
+
+    slug = (body.get("slug") or _slug(name)).strip()
+
+    seo_in = body.get("seo") or {}
+    seo = {
+        "title": seo_in.get("title") or body.get("meta_title") or name,
+        "desc": seo_in.get("desc") or body.get("meta_description") or body.get("exam_name") or "",
+        "keywords": seo_in.get("keywords") or body.get("meta_keywords") or [],
+    }
+
+    visibility_in = body.get("visibility") or {}
+    visibility = {
+        "app": bool(visibility_in.get("app", True)),
+        "website": bool(visibility_in.get("website", True)),
+        "admin_only": bool(visibility_in.get("admin_only", False)),
+    }
+
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "id": pid,
+        "type": ptype,
+        "name": name,
+        "slug": slug,
+        "category_id": category_id,
+        "exam_name": body.get("exam_name"),
+        "banner_image": body.get("banner_image") or "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&q=80",
+        "gradient": body.get("gradient") or ["#0B4DB8", "#082C6F"],
+        "price": price,
+        "offer_price": offer_price,
+        "currency": "INR",
+        "validity_days": validity_days,
+        "language": body.get("language") or "Hindi + English",
+        "features": body.get("features") or [],
+        "faculty_ids": body.get("faculty_ids") or [],
+        "exam_ids": [],
+        "items": items if ptype == "bundle" else (body.get("items") or []),
+        "active": bool(body.get("active", True)),
+        "visibility": visibility,
+        "display_order": int(body.get("display_order") or 0),
+        "seo": seo,
+        "meta": {"raw": {"source": "admin_created", "created_by": user["user_id"]}},
+        "created_at": now,
+        "updated_at": now,
+        "content": body.get("content") or None,
+    }
+    existing = await _db.products.find_one({"id": pid})
+    if existing:
+        raise HTTPException(409, f"Product id '{pid}' already exists")
+    await _db.products.insert_one(doc)
+    doc.pop("_id", None)
+    return {"ok": True, "product": doc}
+
+
+@admin_router.delete("/products/{pid}")
+async def admin_delete_product(pid: str, user=Depends(get_admin_user)):
+    p = await _db.products.find_one({"id": pid}, {"_id": 0, "meta": 1})
+    if not p:
+        raise HTTPException(404, "Product not found")
+    src = (p.get("meta") or {}).get("raw", {}).get("source")
+    if src != "admin_created":
+        raise HTTPException(400, "This product was seeded from a legacy module and cannot be deleted here.")
+    await _db.products.delete_one({"id": pid})
+    return {"ok": True, "deleted": pid}
+
+
+# =========================================================================
+# ADMIN — Payments listing
+# =========================================================================
+@admin_router.get("/payments")
+async def admin_list_payments(limit: int = 100, skip: int = 0, user=Depends(get_admin_user)):
+    total = await _db.payments.count_documents({})
+    docs = await _db.payments.find({}, {"_id": 0}).sort("paid_at", -1).skip(skip).limit(limit).to_list(limit)
+    oids = list({d.get("order_id") for d in docs if d.get("order_id")})
+    orders = {}
+    if oids:
+        async for o in _db.orders.find({"avision_order_id": {"$in": oids}}, {"_id": 0, "avision_order_id": 1, "user_id": 1, "total": 1, "items": 1}):
+            orders[o["avision_order_id"]] = o
+    for d in docs:
+        d["order"] = orders.get(d.get("order_id"))
+    return {"payments": docs, "total": total}
+
+
+# =========================================================================
+# ADMIN — System Status (Settings → System Status)
+# =========================================================================
+_API_VERSION = "1.0.0"
+_BOOT_TIME = datetime.now(timezone.utc).isoformat()
+
+
+@admin_router.get("/system/status")
+async def admin_system_status(user=Depends(get_admin_user)):
+    import os as _os
+
+    api = {"label": "API Server", "status": "online", "detail": f"FastAPI • up since {_BOOT_TIME}"}
+
+    db_health = {"label": "Database", "status": "connected", "detail": ""}
+    try:
+        info = await _db.command("ping")
+        db_health["detail"] = "MongoDB ping ok"
+        db_health["status"] = "connected" if info.get("ok") else "error"
+    except Exception as e:
+        db_health["status"] = "disconnected"
+        db_health["detail"] = str(e)[:120]
+
+    auth_health = {"label": "Authentication", "status": "working", "detail": "JWT + bcrypt"}
+    try:
+        n = await _db.users.count_documents({"active": True})
+        auth_health["detail"] = f"JWT + bcrypt • {n} active users"
+    except Exception as e:
+        auth_health["status"] = "error"
+        auth_health["detail"] = str(e)[:120]
+
+    storage_backends = []
+    if _os.environ.get("AWS_ACCESS_KEY_ID"):
+        storage_backends.append("S3")
+    if _os.environ.get("CLOUDINARY_URL"):
+        storage_backends.append("Cloudinary")
+    storage = {
+        "label": "File Storage",
+        "status": "connected" if storage_backends else "not_configured",
+        "detail": (", ".join(storage_backends) or "Base64 in DB (default)"),
+    }
+
+    video = {"label": "Video Service", "status": "not_configured",
+             "detail": "Public sample MP4 URLs — HLS/DRM CDN pending"}
+
+    pay_status = "not_configured"
+    pay_detail = "No keys detected"
+    key = _os.environ.get("RAZORPAY_KEY_ID") or ""
+    if key:
+        pay_status = "test_mode" if key.startswith("rzp_test") else "connected"
+        pay_detail = f"Razorpay ({'test' if key.startswith('rzp_test') else 'live'}) • key ends …{key[-4:]}"
+    payment = {"label": "Payment Gateway", "status": pay_status, "detail": pay_detail}
+
+    notif_status = "not_configured"
+    notif_detail = "No push keys detected"
+    epk = _os.environ.get("EMERGENT_PUSH_KEY") or ""
+    if epk and epk != "placeholder":
+        notif_status = "connected"
+        notif_detail = "Emergent push key configured"
+    notif = {"label": "Notification Service", "status": notif_status, "detail": notif_detail}
+
+    heartbeats = await _db.client_heartbeats.find({}, {"_id": 0}).to_list(50)
+
+    def _client(name):
+        h = next((x for x in heartbeats if x.get("client") == name), None)
+        if not h:
+            return {"label": name, "status": "not_connected", "detail": "No heartbeat received yet"}
+        try:
+            when = datetime.fromisoformat(h["last_seen"].replace("Z", "+00:00"))
+            age_s = (datetime.now(timezone.utc) - when).total_seconds()
+            fresh = age_s < 5 * 60
+        except Exception:
+            fresh = False
+        return {"label": name, "status": "connected" if fresh else "stale",
+                "detail": f"Last heartbeat: {h.get('last_seen')} • version {h.get('version', 'n/a')}"}
+
+    student_app = _client("student_app")
+    website = _client("website")
+    super_admin = _client("super_admin")
+
+    last_req = await _db.request_logs.find_one({}, sort=[("at", -1)])
+    last_backup = await _db.backup_events.find_one({}, sort=[("at", -1)])
+
+    return {
+        "environment": _os.environ.get("APP_ENV") or "development",
+        "api_version": _API_VERSION,
+        "boot_time": _BOOT_TIME,
+        "frontend": {"student_app": student_app, "website": website, "super_admin": super_admin},
+        "backend": {"api": api, "database": db_health, "auth": auth_health,
+                    "storage": storage, "video": video, "payment": payment, "notifications": notif},
+        "last_successful_request_at": last_req.get("at") if last_req else None,
+        "last_db_backup_at": last_backup.get("at") if last_backup else None,
+    }
+
+
+@router.post("/heartbeat")
+async def client_heartbeat(body: dict):
+    """Public heartbeat: App/Website/Admin ping to signal presence in System Status."""
+    if _db is None:
+        return {"ok": False}
+    client = (body.get("client") or "").strip().lower()
+    if client not in ("student_app", "website", "super_admin"):
+        raise HTTPException(400, "invalid client")
+    now = datetime.now(timezone.utc).isoformat()
+    await _db.client_heartbeats.update_one(
+        {"client": client},
+        {"$set": {"client": client, "last_seen": now, "version": body.get("version") or "n/a"}},
+        upsert=True,
+    )
+    return {"ok": True, "at": now}
+
+
+# =========================================================================
+# ADMIN — Database Overview (Settings → Database)
+# =========================================================================
+_DB_ENTITIES = [
+    ("Students", "users", "Identity + profile"),
+    ("Exam Categories", "exam_categories", "Master list"),
+    ("Exams", "exams", "Per-category exams"),
+    ("Products", "products", "Unified catalog"),
+    ("Orders", "orders", "Unified orders"),
+    ("Payments", "payments", "Unified payments"),
+    ("Entitlements", "entitlements", "Access engine"),
+    ("Faculty", "faculty", "Faculty master"),
+    ("Coupons", "coupons", "Coupon master"),
+    ("Centres", "centres", "Own + franchise"),
+    ("Video Progress", "vc_progress", "Per-lecture watch state"),
+    ("VC Enrollments (legacy)", "vc_enrollments", "Video course enrollments"),
+    ("LC Enrollments (legacy)", "lc_enrollments", "Live course enrollments"),
+    ("Live Sessions", "lc_sessions", "Classroom sessions"),
+    ("Study Materials", "lc_study_materials", "PDFs + notes"),
+    ("Material Downloads", "lc_material_downloads", "Download logs"),
+    ("TP Attempts", "tp_attempts", "Test attempts"),
+    ("TP Questions", "tp_questions", "Question bank"),
+    ("TP Entitlements (legacy)", "tp_entitlements", "Test Prime access"),
+    ("AI Threads", "ai_threads", "AI doubt convos"),
+    ("AI Messages", "ai_messages", "AI doubt messages"),
+    ("Feed Likes", "feed_likes", "Social engagement"),
+    ("Feed Comments", "feed_comments", "Social engagement"),
+    ("Daily Challenges", "daily_challenge_attempts", "Attempts"),
+    ("Client Heartbeats", "client_heartbeats", "Live status pings"),
+    ("Counters", "_counters", "Atomic ID counters"),
+]
+
+
+@admin_router.get("/system/database")
+async def admin_database_overview(user=Depends(get_admin_user)):
+    out = []
+    for label, coll, desc in _DB_ENTITIES:
+        try:
+            n = await _db[coll].estimated_document_count()
+            out.append({"label": label, "collection": coll, "count": int(n),
+                        "description": desc, "status": "ok"})
+        except Exception as e:
+            out.append({"label": label, "collection": coll, "count": 0,
+                        "description": desc, "status": "error", "error": str(e)[:80]})
+    return {"entities": out, "total_collections": len(out)}
+
+
+# =========================================================================
+# ADMIN — Integration Test (Settings → Integration Test)
+# =========================================================================
+@admin_router.get("/system/integration-tests")
+async def admin_integration_tests(user=Depends(get_admin_user)):
+    """Live connectivity + contract tests. Pass/Fail with non-sensitive detail."""
+    results = []
+
+    def _t(name, category, status, detail=""):
+        results.append({"name": name, "category": category, "status": status, "detail": detail})
+
+    try:
+        me = await _db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "email": 1, "roles": 1, "avision_id": 1})
+        _t("JWT bearer parsed", "Authentication", "pass",
+           f"caller: {me.get('email')} • roles: {','.join(me.get('roles') or [])}")
+    except Exception as e:
+        _t("JWT bearer parsed", "Authentication", "fail", str(e)[:120])
+    _t("Admin role guard", "Authentication", "pass", "reached admin-only endpoint")
+
+    try:
+        n = await _db.products.count_documents({"active": True})
+        _t("Products list", "Course API", "pass" if n > 0 else "fail", f"{n} active products")
+    except Exception as e:
+        _t("Products list", "Course API", "fail", str(e)[:120])
+
+    try:
+        p = await _db.products.find_one({"active": True}, {"_id": 0, "id": 1})
+        if p:
+            _t("Product detail", "Course API", "pass", f"sample id: {p['id']}")
+        else:
+            _t("Product detail", "Course API", "fail", "No product found")
+    except Exception as e:
+        _t("Product detail", "Course API", "fail", str(e)[:120])
+
+    try:
+        n = await _db.entitlements.count_documents({"active": True})
+        _t("Entitlement engine", "Entitlement API", "pass", f"{n} active entitlements")
+    except Exception as e:
+        _t("Entitlement engine", "Entitlement API", "fail", str(e)[:120])
+
+    try:
+        anyent = await _db.entitlements.find_one({"active": True}, {"_id": 0, "user_id": 1, "product_id": 1})
+        if anyent:
+            ok = await has_access(anyent["user_id"], anyent["product_id"])
+            _t("has_access() helper", "Entitlement API", "pass" if ok else "fail",
+               f"checked {anyent['product_id']}")
+        else:
+            _t("has_access() helper", "Entitlement API", "skip", "No entitlements yet")
+    except Exception as e:
+        _t("has_access() helper", "Entitlement API", "fail", str(e)[:120])
+
+    try:
+        n = await _db.vc_progress.count_documents({})
+        _t("Video progress table", "Progress API", "pass", f"{n} watch records")
+    except Exception as e:
+        _t("Video progress table", "Progress API", "fail", str(e)[:120])
+
+    try:
+        n = await _db.tp_attempts.count_documents({})
+        _t("Test attempts", "Test API", "pass", f"{n} attempts")
+    except Exception as e:
+        _t("Test attempts", "Test API", "fail", str(e)[:120])
+
+    for c, category in [("student_app", "App ↔ Backend"),
+                        ("website", "Website ↔ Backend"),
+                        ("super_admin", "Admin ↔ Backend")]:
+        try:
+            h = await _db.client_heartbeats.find_one({"client": c}, {"_id": 0})
+            if not h:
+                _t(f"{c} heartbeat", category, "fail", "No heartbeat received yet")
+            else:
+                when = datetime.fromisoformat(h["last_seen"].replace("Z", "+00:00"))
+                age_s = (datetime.now(timezone.utc) - when).total_seconds()
+                _t(f"{c} heartbeat", category,
+                   "pass" if age_s < 300 else "fail",
+                   f"Last seen {int(age_s)}s ago")
+        except Exception as e:
+            _t(f"{c} heartbeat", category, "fail", str(e)[:120])
+
+    summary = {
+        "total": len(results),
+        "pass": sum(1 for r in results if r["status"] == "pass"),
+        "fail": sum(1 for r in results if r["status"] == "fail"),
+        "skip": sum(1 for r in results if r["status"] == "skip"),
+    }
+    return {"results": results, "summary": summary,
+            "run_at": datetime.now(timezone.utc).isoformat()}

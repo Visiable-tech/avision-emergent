@@ -23,6 +23,8 @@ export default function AdminProducts() {
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<any>(null);
+  const [creating, setCreating] = useState(false);
+  const [newProd, setNewProd] = useState<any>({ type: 'video_course', name: '', price: 0, offer_price: 0, validity_days: 365, category_id: 'banking', exam_name: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,7 +61,12 @@ export default function AdminProducts() {
       <AdminHeader
         title="Products"
         subtitle={`${total} in catalog`}
-        action={<SearchInput value={q} onChangeText={setQ} placeholder="Search products" />}
+        action={
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <SearchInput value={q} onChangeText={setQ} placeholder="Search products" />
+            <Btn label="New product" icon="add" onPress={() => setCreating(true)} />
+          </View>
+        }
       />
 
       <View style={{ paddingHorizontal: 32, flexDirection: 'row', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -151,6 +158,73 @@ export default function AdminProducts() {
                 validity_days: editing.validity_days,
                 display_order: editing.display_order,
               })} />
+            </View>
+          </View>
+        </View>
+      ) : null}
+
+      {creating ? (
+        <View style={s.overlay}>
+          <View style={[s.modal, { maxWidth: 640 }]}>
+            <View style={s.modalHead}>
+              <Text style={s.modalTitle}>Create new product</Text>
+              <Pressable onPress={() => setCreating(false)}>
+                <Ionicons name="close" size={20} color={theme.colors.muted} />
+              </Pressable>
+            </View>
+            <Text style={s.mLbl}>Type</Text>
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+              {['live_course', 'video_course', 'test_series', 'booster', 'magazine'].map((t) => (
+                <Pressable key={t} onPress={() => setNewProd({ ...newProd, type: t })} style={[s.tab, newProd.type === t && s.tabActive]}>
+                  <Text style={[s.tabTxt, newProd.type === t && { color: '#FFF' }]}>{t}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={s.mLbl}>Name</Text>
+            <TextInput style={s.mInput} placeholder="TEST — AVISION BANKING COURSE" value={newProd.name} onChangeText={(v) => setNewProd({ ...newProd, name: v })} testID="new-prod-name" />
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.mLbl}>Category</Text>
+                <TextInput style={s.mInput} placeholder="banking" value={newProd.category_id} onChangeText={(v) => setNewProd({ ...newProd, category_id: v })} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.mLbl}>Exam name</Text>
+                <TextInput style={s.mInput} placeholder="IBPS PO 2026" value={newProd.exam_name} onChangeText={(v) => setNewProd({ ...newProd, exam_name: v })} />
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.mLbl}>Price (₹)</Text>
+                <TextInput style={s.mInput} keyboardType="numeric" value={String(newProd.price)} onChangeText={(v) => setNewProd({ ...newProd, price: parseInt(v || '0', 10) })} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.mLbl}>Offer price (₹)</Text>
+                <TextInput style={s.mInput} keyboardType="numeric" value={String(newProd.offer_price)} onChangeText={(v) => setNewProd({ ...newProd, offer_price: parseInt(v || '0', 10) })} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.mLbl}>Validity (days)</Text>
+                <TextInput style={s.mInput} keyboardType="numeric" value={String(newProd.validity_days)} onChangeText={(v) => setNewProd({ ...newProd, validity_days: parseInt(v || '0', 10) })} />
+              </View>
+            </View>
+            <Text style={{ fontSize: 11, color: theme.colors.muted, fontWeight: '700', marginTop: 10 }}>Visible on: <Text style={{ fontWeight: '900', color: theme.colors.brand }}>Student App</Text>{' + '}<Text style={{ fontWeight: '900', color: theme.colors.brand }}>Website</Text> (once website ships)</Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16, justifyContent: 'flex-end' }}>
+              <Btn label="Cancel" variant="ghost" onPress={() => setCreating(false)} />
+              <Btn label="Create product" icon="checkmark-circle" onPress={async () => {
+                try {
+                  if (!newProd.name.trim()) { Alert.alert('Enter name'); return; }
+                  await api.adminExtra.createProduct({
+                    type: newProd.type, name: newProd.name.trim(),
+                    price: newProd.price, offer_price: newProd.offer_price,
+                    validity_days: newProd.validity_days,
+                    category_id: newProd.category_id || undefined,
+                    exam_name: newProd.exam_name || undefined,
+                    visibility: { app: true, website: true, admin_only: false },
+                  });
+                  setCreating(false);
+                  setNewProd({ type: 'video_course', name: '', price: 0, offer_price: 0, validity_days: 365, category_id: 'banking', exam_name: '' });
+                  load();
+                } catch (e: any) { Alert.alert('Error', e?.message || 'Failed'); }
+              }} testID="new-prod-submit" />
             </View>
           </View>
         </View>

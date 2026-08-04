@@ -3,18 +3,61 @@ import { View, Text, Pressable, StyleSheet, Platform, ScrollView } from 'react-n
 import { Ionicons } from '@expo/vector-icons';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { useAuth } from '@/src/AuthContext';
+import { api } from '@/src/api';
 import { theme } from '@/src/theme';
 
-const NAV = [
+const NAV: any[] = [
   { path: '/admin', label: 'Dashboard', icon: 'grid' },
+
+  { section: 'Identity' },
   { path: '/admin/students', label: 'Students', icon: 'people' },
+  { path: '/admin/centres', label: 'Centres (legacy)', icon: 'business' },
+  { path: '/admin/centres-v2', label: 'Centre Management', icon: 'storefront' },
+  { path: '/admin/franchise', label: 'Franchise Master', icon: 'business-outline' },
+
+  { section: 'Academic' },
+  { path: '/admin/exam-categories', label: 'Exam Categories', icon: 'trophy' },
+  { path: '/admin/exams', label: 'Exams', icon: 'ribbon' },
+  { path: '/admin/subjects', label: 'Subjects', icon: 'book' },
+  { path: '/admin/chapters', label: 'Chapters', icon: 'list' },
+  { path: '/admin/lessons', label: 'Lessons', icon: 'play-circle' },
+
+  { section: 'Catalog' },
   { path: '/admin/products', label: 'Products', icon: 'cube' },
+  { path: '/admin/live-courses', label: 'Live Courses', icon: 'radio' },
+  { path: '/admin/video-courses', label: 'Video Courses', icon: 'videocam' },
+  { path: '/admin/test-prime', label: 'Test Prime', icon: 'clipboard' },
+  { path: '/admin/faculty', label: 'Faculty Master', icon: 'school' },
+
+  { section: 'Learning Content' },
+  { path: '/admin/question-bank', label: 'Question Bank', icon: 'help-circle' },
+  { path: '/admin/study-material', label: 'Study Material', icon: 'document-text' },
+  { path: '/admin/current-affairs', label: 'Current Affairs', icon: 'newspaper' },
+  { path: '/admin/digital-notes', label: 'Digital Notes', icon: 'reader' },
+  { path: '/admin/previous-papers', label: 'Previous Papers', icon: 'file-tray-full' },
+
+  { section: 'Commerce' },
   { path: '/admin/orders', label: 'Orders', icon: 'receipt' },
-  { path: '/admin/entitlements', label: 'Entitlements', icon: 'shield-checkmark' },
-  { path: '/admin/faculty', label: 'Faculty', icon: 'school' },
+  { path: '/admin/payments', label: 'Payments', icon: 'card' },
   { path: '/admin/coupons', label: 'Coupons', icon: 'pricetag' },
-  { path: '/admin/centres', label: 'Centres', icon: 'business' },
+  { path: '/admin/entitlements', label: 'Entitlements', icon: 'shield-checkmark' },
   { path: '/admin/enroll', label: 'Manual Enroll', icon: 'add-circle' },
+
+  { section: 'Content & CMS' },
+  { path: '/admin/banners', label: 'Home Banners', icon: 'image' },
+  { path: '/admin/promo-banners', label: 'Promo Banners', icon: 'megaphone' },
+  { path: '/admin/notifications', label: 'Notifications', icon: 'notifications' },
+  { path: '/admin/testimonials', label: 'Testimonials', icon: 'star' },
+  { path: '/admin/results', label: 'Results', icon: 'medal' },
+  { path: '/admin/faqs', label: 'FAQs', icon: 'help-buoy' },
+  { path: '/admin/cms/website', label: 'Website CMS', icon: 'globe' },
+  { path: '/admin/cms/app', label: 'App CMS', icon: 'phone-portrait' },
+
+  { section: 'Analytics & Ops' },
+  { path: '/admin/reports', label: 'Reports & Analytics', icon: 'stats-chart' },
+  { path: '/admin/settings/status', label: 'System Status', icon: 'pulse' },
+  { path: '/admin/settings/database', label: 'Database', icon: 'server' },
+  { path: '/admin/settings/integration', label: 'Integration Test', icon: 'flash' },
 ];
 
 export default function AdminLayout() {
@@ -25,6 +68,15 @@ export default function AdminLayout() {
   const isAdmin = Array.isArray(user?.roles) && user!.roles.includes('admin');
   const path = '/' + segments.join('/');
   const isLoginRoute = path === '/admin/login' || path.startsWith('/admin/login');
+
+  // Send super_admin heartbeat every 60s
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isAdmin) return;
+    const send = () => { api.heartbeat('super_admin', '1.0.0').catch(() => {}); };
+    send();
+    const t = setInterval(send, 60_000);
+    return () => clearInterval(t);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (loading) return;
@@ -77,7 +129,10 @@ export default function AdminLayout() {
           </View>
         </View>
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-          {NAV.map((n) => {
+          {NAV.map((n: any, i: number) => {
+            if (n.section) {
+              return <Text key={`sec-${i}`} style={s.section}>{n.section}</Text>;
+            }
             const active = path === n.path || (n.path !== '/admin' && path.startsWith(n.path));
             return (
               <Pressable
@@ -85,8 +140,9 @@ export default function AdminLayout() {
                 onPress={() => router.push(n.path as any)}
                 style={[s.navItem, active && s.navItemActive]}
               >
-                <Ionicons name={n.icon as any} size={18} color={active ? '#FFF' : theme.colors.onSurfaceTertiary} />
-                <Text style={[s.navTxt, active && { color: '#FFF' }]}>{n.label}</Text>
+                <Ionicons name={n.icon as any} size={16} color={active ? '#FFF' : theme.colors.onSurfaceTertiary} />
+                <Text style={[s.navTxt, active && { color: '#FFF' }]} numberOfLines={1}>{n.label}</Text>
+                {n.soon ? <View style={s.soonPill}><Text style={s.soonPillTxt}>soon</Text></View> : null}
               </Pressable>
             );
           })}
@@ -126,9 +182,12 @@ const s = StyleSheet.create({
   brandBadgeTxt: { color: '#FFF', fontWeight: '900', letterSpacing: 1, fontSize: 13 },
   brandTitle: { fontSize: 13, fontWeight: '900', color: theme.colors.onSurface, letterSpacing: 0.5 },
   brandSub: { fontSize: 10.5, color: theme.colors.muted, fontWeight: '700', marginTop: 2 },
-  navItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 10, borderRadius: 10, marginBottom: 2 },
+  navItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, marginBottom: 1 },
   navItemActive: { backgroundColor: theme.colors.brand },
-  navTxt: { fontSize: 13, fontWeight: '700', color: theme.colors.onSurfaceTertiary },
+  navTxt: { flex: 1, fontSize: 12.5, fontWeight: '700', color: theme.colors.onSurfaceTertiary },
+  section: { fontSize: 9.5, fontWeight: '900', color: theme.colors.mutedLight, letterSpacing: 1, textTransform: 'uppercase', marginTop: 12, marginBottom: 4, paddingHorizontal: 10 },
+  soonPill: { backgroundColor: theme.colors.surfaceSecondary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  soonPillTxt: { fontSize: 8.5, fontWeight: '900', color: theme.colors.mutedLight, letterSpacing: 0.5 },
   userBox: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 8, paddingTop: 12 },
   avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: theme.colors.brandTertiary, alignItems: 'center', justifyContent: 'center' },
   avatarTxt: { color: theme.colors.brand, fontWeight: '900', fontSize: 13 },

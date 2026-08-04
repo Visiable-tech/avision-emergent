@@ -33,6 +33,10 @@ except Exception:
     _razorpay = None
 
 from auth import get_current_user, get_optional_user
+try:
+    import foundation as _foundation
+except Exception:  # pragma: no cover
+    _foundation = None
 
 
 router = APIRouter(prefix="/api/video-courses", tags=["video-courses"])
@@ -564,7 +568,59 @@ async def _create_enrollment(user, course, final_price, discount_inr, order_id, 
     }
     await _db.vc_enrollments.insert_one(doc)
     doc.pop("_id", None)
+
+    # ---- AVISION ONE unified entitlement grant ----
+    if _foundation is not None:
+        try:
+            await _foundation.grant_entitlement(
+                user_id=user["user_id"], product_id=course["id"],
+                source="online" if order_id else "free_demo",
+                amount_inr=int(final_price or 0),
+                method="razorpay" if order_id else "free",
+                gateway_order_id=order_id, gateway_payment_id=payment_id,
+                note=note or "vc_create_enrollment",
+                validity_days_override=validity_days,
+                channel="online",
+            )
+        except Exception as e:  # pragma: no cover
+            print("vc._create_enrollment grant_entitlement:", e)
     return {"verified": bool(order_id), "enrollment": doc}
+
+
+async def _get_enrollment_or_403(user, cid):
+    enr = await _db.vc_enrollments.find_one({"user_id": user["user_id"], "course_id": cid}, {"_id": 0})
+    if enr:
+        return enr
+    # Fallback to unified entitlement (e.g. admin manual enroll / bundle unlock)
+    if _foundation is not None:
+        try:
+            ok = await _foundation.has_access(user["user_id"], cid)
+        except Exception:
+            ok = False
+        if ok:
+            course = next((x for x in COURSES if x["id"] == cid), None)
+            if course:
+                validity_days = int(course.get("validity_months", 12)) * 30
+                now = datetime.now(timezone.utc)
+                synth = {
+                    "id": str(uuid.uuid4()),
+                    "user_id": user["user_id"], "course_id": cid,
+                    "course_name": course.get("name"),
+                    "enrolled_at": now.isoformat(),
+                    "expires_at": (now + timedelta(days=validity_days)).isoformat(),
+                    "amount_paid_paise": 0, "order_id": None, "payment_id": None,
+                    "status": "active", "progress_pct": 0, "videos_watched": 0,
+                    "questions_practiced": 0, "tests_attempted": 0,
+                    "watch_time_hours": 0, "streak_days": 0,
+                    "last_activity_at": now.isoformat(), "note": "entitlement_synth",
+                }
+                await _db.vc_enrollments.update_one(
+                    {"user_id": user["user_id"], "course_id": cid},
+                    {"$setOnInsert": synth},
+                    upsert=True,
+                )
+                return synth
+    raise HTTPException(403, "Not enrolled in this course")
 
 
 # =========================================================================
@@ -606,13 +662,6 @@ def _duration_to_sec(dur: str) -> int:
     except Exception:
         pass
     return 0
-
-
-async def _get_enrollment_or_403(user, cid):
-    enr = await _db.vc_enrollments.find_one({"user_id": user["user_id"], "course_id": cid}, {"_id": 0})
-    if not enr:
-        raise HTTPException(403, "Not enrolled in this course")
-    return enr
 
 
 async def _recompute_enrollment_stats(user_id: str, course: dict):
