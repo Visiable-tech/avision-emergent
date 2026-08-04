@@ -111,7 +111,7 @@ export default function VideoCourseDetail() {
       return;
     }
     if (course?.is_enrolled) {
-      router.push('/video-courses/my');
+      router.push(`/video-courses/dashboard/${id}`);
       return;
     }
     setEnrolling(true);
@@ -134,7 +134,7 @@ export default function VideoCourseDetail() {
               try {
                 await api.vcVerify(id!, resp);
                 Alert.alert('Enrolled Successfully', `You are now enrolled in ${course.name}!`, [
-                  { text: 'Go to My Courses', onPress: () => router.replace('/video-courses/my') },
+                  { text: 'Start Learning', onPress: () => router.replace(`/video-courses/dashboard/${id}`) },
                 ]);
                 load();
               } catch (e: any) {
@@ -156,7 +156,7 @@ export default function VideoCourseDetail() {
                 try {
                   await api.vcFreeEnroll(id!);
                   Alert.alert('Enrolled', 'Demo enrollment created.', [
-                    { text: 'Go to My Courses', onPress: () => router.replace('/video-courses/my') },
+                    { text: 'Start Learning', onPress: () => router.replace(`/video-courses/dashboard/${id}`) },
                   ]);
                   load();
                 } catch (e: any) {

@@ -153,7 +153,7 @@ export default function VideoCoursesLanding() {
           {continueLearning?.enrollment ? (
             <Pressable
               style={s.continueCard}
-              onPress={() => router.push(`/video-courses/${continueLearning.enrollment.course_id}`)}
+              onPress={() => router.push(`/video-courses/dashboard/${continueLearning.enrollment.course_id}`)}
               testID="vc-continue"
             >
               <Image source={{ uri: continueLearning.course?.banner_image }} style={s.continueThumb} contentFit="cover" />

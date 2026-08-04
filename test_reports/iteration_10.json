@@ -1,0 +1,32 @@
+{
+  "summary": "Video Courses Phase 2 (Post-Purchase Dashboard) + Phase 3 (Player + Progress + Analytics) verified end-to-end. Backend: 9/9 new pytest cases passed (Phase 2/3) + 21/21 Phase-1 regression still green (30/30 total for Video Courses module). Curriculum enrichment confirmed — every subject/chapter with video_count>0 now has at least one lecture and every lecture has a playable video_url (Google sample MP4 bucket). GET /{cid}/lecture/{lec_id} returns lecture with video_url, prev(null for first)/next(non-null) linkage, index/total, and default progress. POST /{cid}/progress upserts correctly: first call with watched_pct=45 + watch_seconds_delta=337 persists and recomputes enrollment.progress_pct / watch_time_hours; second call cumulatively ADDs watch_seconds_delta (baseline+200) and never regresses watched_pct; completed:true forces watched_pct=100 and bumps enrollment.videos_watched. GET /{cid}/progress returns resume{}, curriculum[], progress{lec_id→record}, subject_stats[], totals; falls back to first-lecture resume when no progress exists. GET /{cid}/analytics returns totals{total_lectures, completed_lectures, completion_pct, total_watch_hours, streak_days} + 7-day week histogram. Progress endpoints correctly 403 without enrollment. Frontend: Login → /video-courses/dashboard/vc-banking-2026 renders hero with course name/exam, progress ring (1%), streak pill, resume card (REWATCH state after completion, START LEARNING/CONTINUE WATCHING otherwise) with testID `vc-resume`, weekly bar chart with 7 days, subject-wise progress bars (Quantitative Aptitude 3%, others 0%), and full accordion curriculum with per-lecture progress ticks (checkmark for completed, ring for in-progress, outline for untouched, FREE pill on free lectures). Resume-card tap routes to /video-courses/watch/vc-banking-2026?lec=ch-number-system--lec-0. Player renders HTML5 <video> element on web with the MP4 (Sintel.mp4), subject/chapter/title header, progress bar with time display, Prev/Mark Complete/Next buttons (testID `vc-mark-complete`), and UP NEXT card (Types of Numbers). Mark Complete fires vcSaveProgress with completed:true — dashboard reload correctly shows REWATCH label and updated 1/105 completed. Enrolled course detail routes to /video-courses/dashboard/{id} via testID `vc-continue-learning` (Start Learning button); no Buy Now/coupon panel shown when enrolled. My Video Courses card tap also routes to Dashboard. Regression: /courses landing tab renders search, category chips (Banking 3 / SSC 1 / Railway 1 / …), category banner, Continue Learning banner (with 1% progress), and Popular Banking Courses list. No red-screen errors, no deprecated Expo packages detected. Only warning: 'props.pointerEvents is deprecated' from a third-party (expo-linear-gradient / RN-Web).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_video_courses_phase23.py",
+    "/app/backend/tests/test_video_courses_module.py",
+    "/app/test_reports/pytest/pytest_iter10_video_phase23.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "watch/[id].tsx: `saveProgress` throttle allows a Mark-Complete tap taken within 15s of the previous save to be skipped if force=true is not honoured — verified force flag IS set on markComplete, so OK. Just a note: the `watch_seconds_delta` is capped at 60s per save, so long single-open sessions won't over-count.",
+    "dashboard/[id].tsx: `progressMap[l.id]` on curriculum tree correctly matches backend `progress_map[lecture_id]` because both use the same `ch-*--lec-N` string; verified.",
+    "video_courses.py `_recompute_enrollment_stats`: `progress_pct = avg(watched_pct across ALL lectures)` — with 105 lectures, marking 1 fully complete gives ~1% (0 for most + 100 for one → 100/105 ≈ 1). This is expected but the UX label 'YOUR PROGRESS' could later be split into 'lectures completed %' vs 'weighted watch %'. Not a bug — dashboard already exposes both (`completed_lectures`/`total_lectures` and `completion_pct`).",
+    "video_courses.py: `upsert_progress` treats `watch_seconds_delta` as authoritative from client. Malicious clients could inflate watch_time_hours. Fine for MVP; consider server-side rate-limiting or cross-checking with last_pos_seconds later.",
+    "video_courses.py: `_ProgressBody` dict class is defined but unused — can be removed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_video_courses_phase23.py (new)"
+  ],
+  "success_rate": { "backend": "100% (9/9 phase-23 + 21/21 phase-1 regression)", "frontend": "100%" },
+  "seed_data_creation": "Test user test@avision.com's vc_progress record for lecture ch-number-system--lec-0 was populated (watched_pct=100, completed=true, watch_seconds ≈ 537). Enrollment vc-banking-2026 aggregates recomputed: progress_pct=1, videos_watched=1, watch_time_hours≈0.15.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Video Courses Phase 2 + Phase 3 fully wired. New endpoints live under /api/video-courses: GET/POST /{cid}/progress, GET /{cid}/analytics, GET /{cid}/lecture/{lec_id}. Progress upsert uses $inc on watch_seconds and $set with max() on watched_pct so cumulative deltas are safe. `_flatten_lectures` returns lecture dicts with `lecture_id` (not `id`) — remember when writing new tests. Frontend routes: /video-courses/dashboard/[id] and /video-courses/watch/[id]?lec=<lecId>. Enrolled state on detail page + My Courses card + resume card all route to the Dashboard. Web player uses HTML5 <video>; native uses NativeVideo wrapper (expo-video). Test user test@avision.com has vc-banking-2026 enrollment + 1 completed lecture. If retesting, expect REWATCH label on resume card; to reset, delete vc_progress docs for that user.",
+  "rca_of_issue": "N/A — feature verification; all Phase 2/3 flows working. Two initial pytest failures were self-inflicted (test used `id` instead of `lecture_id` for the lecture dict, and made cross-worker ordering assumptions under xdist parallel scheduling). Fixed by using the correct field name and mark-completing inside the overview test."
+}

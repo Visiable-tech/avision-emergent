@@ -153,6 +153,18 @@ export const api = {
     req(`/video-courses/${cid}/enroll/free`, { method: 'POST' }, true),
   vcMyEnrollments: () => req('/video-courses/enrollments/mine', undefined, true),
   vcContinue: () => req('/video-courses/continue-learning', undefined, true),
+  vcProgress: (cid: string) => req(`/video-courses/${cid}/progress`, undefined, true),
+  vcAnalytics: (cid: string) => req(`/video-courses/${cid}/analytics`, undefined, true),
+  vcLecture: (cid: string, lecId: string) =>
+    req(`/video-courses/${cid}/lecture/${lecId}`, undefined, true),
+  vcSaveProgress: (
+    cid: string,
+    body: { lecture_id: string; watched_pct?: number; last_pos_seconds?: number; watch_seconds_delta?: number; completed?: boolean },
+  ) =>
+    req(`/video-courses/${cid}/progress`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }, true),
   examInfo: (category?: string) =>
     req(`/exam-info${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   examInfoDetail: (id: string) => req(`/exam-info/${id}`),

@@ -54,7 +54,7 @@ export default function MyVideoCourses() {
             <Pressable
               key={e.id}
               style={s.card}
-              onPress={() => router.push(`/video-courses/${e.course_id}`)}
+              onPress={() => router.push(`/video-courses/dashboard/${e.course_id}`)}
             >
               {e.course?.banner_image ? (
                 <Image source={{ uri: e.course.banner_image }} style={s.thumb} contentFit="cover" />

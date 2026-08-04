@@ -48,6 +48,10 @@ async def ensure_video_courses_indexes(db):
     await db.vc_enrollments.create_index([("user_id", 1), ("course_id", 1)], unique=True)
     await db.vc_orders.create_index("order_id", unique=True)
     await db.vc_coupons.create_index("code", unique=True)
+    await db.vc_progress.create_index(
+        [("user_id", 1), ("course_id", 1), ("lecture_id", 1)], unique=True
+    )
+    await db.vc_progress.create_index([("user_id", 1), ("course_id", 1), ("last_watched_at", -1)])
 
 
 # --------------------- SEED DATA ---------------------------
@@ -178,13 +182,64 @@ def _mk_subject(name, key, chapters_count, hours, chapters):
     }
 
 
+# Public MP4 test streams — Google's official sample bucket. Rotated per lecture index.
+_SAMPLE_VIDEOS = [
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+]
+
+_LECTURE_POSTER = "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&q=80"
+
+
+def _slug(txt: str) -> str:
+    return (
+        txt.lower()
+        .replace(" ", "-").replace("&", "and").replace(",", "").replace("'", "")
+        .replace("(", "").replace(")", "").replace(".", "").replace("/", "-")
+    )
+
+
 def _mk_chapter(name, video_count, lectures):
+    """Chapter with lectures. If lectures list empty, auto-generate placeholder
+    lectures so every chapter has playable content."""
+    ch_id = f"ch-{_slug(name)}"
+    if not lectures and video_count > 0:
+        cap = min(int(video_count), 6)
+        lectures = []
+        for i in range(cap):
+            title_variants = [
+                f"{name} — Introduction",
+                f"{name} — Concept Basics",
+                f"{name} — Solved Examples",
+                f"{name} — Practice Set",
+                f"{name} — Advanced Problems",
+                f"{name} — Speed Tricks",
+            ]
+            title = title_variants[i] if i < len(title_variants) else f"{name} — Class {i + 1}"
+            duration = f"{12 + (i * 3) % 20}:{(i * 17) % 60:02d}"
+            lectures.append((title, duration, i == 0))
     return {
-        "id": f"ch-{name.lower().replace(' ', '-').replace('&','and')}",
+        "id": ch_id,
         "name": name,
         "video_count": video_count,
         "lectures": [
-            {"title": t, "duration": d, "is_free": free, "id": f"lec-{i}"}
+            {
+                "id": f"{ch_id}--lec-{i}",
+                "title": t,
+                "duration": d,
+                "is_free": free,
+                # Rotate video URLs so every lecture is playable
+                "video_url": _SAMPLE_VIDEOS[(hash(ch_id) + i) % len(_SAMPLE_VIDEOS)],
+                "poster": _LECTURE_POSTER,
+            }
             for i, (t, d, free) in enumerate(lectures)
         ],
     }
@@ -510,3 +565,333 @@ async def _create_enrollment(user, course, final_price, discount_inr, order_id, 
     await _db.vc_enrollments.insert_one(doc)
     doc.pop("_id", None)
     return {"verified": bool(order_id), "enrollment": doc}
+
+
+# =========================================================================
+# PROGRESS + ANALYTICS  (Phase 2 & 3)
+# =========================================================================
+
+def _flatten_lectures(course: dict) -> list[dict]:
+    """Return a flat list of every lecture with subject/chapter linkage."""
+    out = []
+    for sub in course.get("curriculum", []) or []:
+        for ch in sub.get("chapters", []) or []:
+            for lec in ch.get("lectures", []) or []:
+                out.append({
+                    "subject": sub.get("subject"),
+                    "subject_key": sub.get("key"),
+                    "chapter_id": ch.get("id"),
+                    "chapter_name": ch.get("name"),
+                    "lecture_id": lec.get("id"),
+                    "title": lec.get("title"),
+                    "duration": lec.get("duration"),
+                    "duration_sec": _duration_to_sec(lec.get("duration")),
+                    "video_url": lec.get("video_url"),
+                    "poster": lec.get("poster"),
+                    "is_free": bool(lec.get("is_free")),
+                })
+    return out
+
+
+def _duration_to_sec(dur: str) -> int:
+    """`12:35` -> 755"""
+    if not dur:
+        return 0
+    try:
+        parts = [int(x) for x in dur.split(":")]
+        if len(parts) == 2:
+            return parts[0] * 60 + parts[1]
+        if len(parts) == 3:
+            return parts[0] * 3600 + parts[1] * 60 + parts[2]
+    except Exception:
+        pass
+    return 0
+
+
+async def _get_enrollment_or_403(user, cid):
+    enr = await _db.vc_enrollments.find_one({"user_id": user["user_id"], "course_id": cid}, {"_id": 0})
+    if not enr:
+        raise HTTPException(403, "Not enrolled in this course")
+    return enr
+
+
+async def _recompute_enrollment_stats(user_id: str, course: dict):
+    """Rebuild aggregate fields on the enrollment doc from vc_progress."""
+    cid = course["id"]
+    lecs = _flatten_lectures(course)
+    total_lecs = len(lecs) or 1
+    total_sec = sum(l.get("duration_sec", 0) for l in lecs) or 1
+
+    cur = _db.vc_progress.find({"user_id": user_id, "course_id": cid}, {"_id": 0})
+    watched_completed = 0
+    watch_seconds_total = 0
+    lecture_pct_sum = 0
+    last_activity = None
+    async for p in cur:
+        wsec = int(p.get("watch_seconds") or 0)
+        wpct = min(100, int(p.get("watched_pct") or 0))
+        watch_seconds_total += wsec
+        lecture_pct_sum += wpct
+        if p.get("completed"):
+            watched_completed += 1
+        lw = p.get("last_watched_at")
+        if lw and (not last_activity or lw > last_activity):
+            last_activity = lw
+
+    # Weighted course progress = avg watched_pct across all lectures
+    progress_pct = int(round(lecture_pct_sum / total_lecs)) if total_lecs else 0
+    watch_time_hours = round(watch_seconds_total / 3600.0, 2)
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await _db.vc_enrollments.update_one(
+        {"user_id": user_id, "course_id": cid},
+        {"$set": {
+            "progress_pct": min(100, progress_pct),
+            "videos_watched": watched_completed,
+            "watch_time_hours": watch_time_hours,
+            "last_activity_at": last_activity or now_iso,
+        }},
+    )
+
+
+class _ProgressBody(dict):
+    """Progress upsert payload (kept lax on typing for MVP)."""
+    pass
+
+
+@router.post("/{cid}/progress")
+async def upsert_progress(cid: str, body: dict, user=Depends(get_current_user)):
+    course = next((x for x in COURSES if x["id"] == cid and x.get("status") == "active"), None)
+    if not course:
+        raise HTTPException(404, "Course not found")
+    await _get_enrollment_or_403(user, cid)
+
+    lecture_id = (body.get("lecture_id") or "").strip()
+    if not lecture_id:
+        raise HTTPException(400, "lecture_id required")
+
+    # Find the lecture in this course to attach subject/chapter linkage
+    lecs = _flatten_lectures(course)
+    lec = next((l for l in lecs if l["lecture_id"] == lecture_id), None)
+    if not lec:
+        raise HTTPException(404, "Lecture not found in course")
+
+    watched_pct = body.get("watched_pct")
+    last_pos = body.get("last_pos_seconds")
+    watch_delta = int(body.get("watch_seconds_delta") or 0)
+    completed = body.get("completed")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    existing = await _db.vc_progress.find_one(
+        {"user_id": user["user_id"], "course_id": cid, "lecture_id": lecture_id},
+        {"_id": 0},
+    )
+    if existing:
+        set_fields = {"last_watched_at": now_iso}
+        if watched_pct is not None:
+            set_fields["watched_pct"] = max(int(watched_pct), int(existing.get("watched_pct") or 0))
+        if last_pos is not None:
+            set_fields["last_pos_seconds"] = int(last_pos)
+        if completed is not None:
+            set_fields["completed"] = bool(completed) or bool(existing.get("completed"))
+            if set_fields["completed"]:
+                set_fields["watched_pct"] = 100
+        inc = {"watch_seconds": max(0, watch_delta)}
+        await _db.vc_progress.update_one(
+            {"user_id": user["user_id"], "course_id": cid, "lecture_id": lecture_id},
+            {"$set": set_fields, "$inc": inc},
+        )
+    else:
+        doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": user["user_id"],
+            "course_id": cid,
+            "lecture_id": lecture_id,
+            "subject_key": lec["subject_key"],
+            "chapter_id": lec["chapter_id"],
+            "watched_pct": int(watched_pct or 0),
+            "last_pos_seconds": int(last_pos or 0),
+            "watch_seconds": max(0, watch_delta),
+            "completed": bool(completed) or int(watched_pct or 0) >= 100,
+            "first_watched_at": now_iso,
+            "last_watched_at": now_iso,
+        }
+        if doc["completed"]:
+            doc["watched_pct"] = 100
+        await _db.vc_progress.insert_one(doc)
+
+    await _recompute_enrollment_stats(user["user_id"], course)
+    enr = await _db.vc_enrollments.find_one(
+        {"user_id": user["user_id"], "course_id": cid}, {"_id": 0}
+    )
+    return {"ok": True, "enrollment": enr}
+
+
+@router.get("/{cid}/progress")
+async def get_progress(cid: str, user=Depends(get_current_user)):
+    course = next((x for x in COURSES if x["id"] == cid and x.get("status") == "active"), None)
+    if not course:
+        raise HTTPException(404, "Course not found")
+    enr = await _get_enrollment_or_403(user, cid)
+
+    docs = await _db.vc_progress.find(
+        {"user_id": user["user_id"], "course_id": cid}, {"_id": 0}
+    ).to_list(2000)
+    progress_map = {d["lecture_id"]: d for d in docs}
+
+    # Subject-wise breakdown
+    lecs = _flatten_lectures(course)
+    subj_stats: dict = {}
+    for l in lecs:
+        skey = l["subject_key"] or "misc"
+        s = subj_stats.setdefault(skey, {
+            "subject": l["subject"],
+            "subject_key": skey,
+            "total": 0, "completed": 0, "watched_seconds": 0,
+        })
+        s["total"] += 1
+        p = progress_map.get(l["lecture_id"])
+        if p:
+            if p.get("completed") or (p.get("watched_pct") or 0) >= 90:
+                s["completed"] += 1
+            s["watched_seconds"] += int(p.get("watch_seconds") or 0)
+
+    for s in subj_stats.values():
+        s["pct"] = int(round(s["completed"] * 100 / max(1, s["total"])))
+        s["watched_hours"] = round(s["watched_seconds"] / 3600.0, 2)
+
+    # Last-watched lecture (for Continue button)
+    last_lec = None
+    last_watched = None
+    for d in docs:
+        lw = d.get("last_watched_at")
+        if lw and (not last_watched or lw > last_watched):
+            last_watched = lw
+            last_lec = d
+
+    resume = None
+    if last_lec:
+        lec_meta = next((l for l in lecs if l["lecture_id"] == last_lec["lecture_id"]), None)
+        if lec_meta:
+            resume = {
+                **lec_meta,
+                "last_pos_seconds": last_lec.get("last_pos_seconds", 0),
+                "watched_pct": last_lec.get("watched_pct", 0),
+                "completed": last_lec.get("completed", False),
+            }
+
+    if not resume and lecs:
+        # No progress yet — default resume = first lecture
+        resume = {**lecs[0], "last_pos_seconds": 0, "watched_pct": 0, "completed": False}
+
+    return {
+        "enrollment": enr,
+        "course": _summary(course),
+        "curriculum": course.get("curriculum", []),
+        "progress": progress_map,
+        "subject_stats": list(subj_stats.values()),
+        "resume": resume,
+        "total_lectures": len(lecs),
+        "completed_lectures": sum(1 for d in docs if d.get("completed") or (d.get("watched_pct") or 0) >= 90),
+    }
+
+
+@router.get("/{cid}/analytics")
+async def get_analytics(cid: str, user=Depends(get_current_user)):
+    course = next((x for x in COURSES if x["id"] == cid and x.get("status") == "active"), None)
+    if not course:
+        raise HTTPException(404, "Course not found")
+    enr = await _get_enrollment_or_403(user, cid)
+
+    lecs = _flatten_lectures(course)
+    total_lecs = len(lecs)
+    total_sec = sum(l.get("duration_sec", 0) for l in lecs)
+
+    # 7-day watch histogram
+    from collections import defaultdict
+    today = datetime.now(timezone.utc).date()
+    week_buckets = { (today - timedelta(days=i)).isoformat(): 0 for i in range(6, -1, -1) }
+
+    cur = _db.vc_progress.find({"user_id": user["user_id"], "course_id": cid}, {"_id": 0})
+    total_watch_sec = 0
+    completed = 0
+    streak_days_set = set()
+    async for p in cur:
+        wsec = int(p.get("watch_seconds") or 0)
+        total_watch_sec += wsec
+        if p.get("completed") or (p.get("watched_pct") or 0) >= 90:
+            completed += 1
+        lw = p.get("last_watched_at")
+        if lw:
+            try:
+                d = lw[:10]  # YYYY-MM-DD
+                streak_days_set.add(d)
+                if d in week_buckets:
+                    week_buckets[d] += wsec
+            except Exception:
+                pass
+
+    # Compute streak (consecutive days ending today)
+    streak = 0
+    cursor = today
+    while cursor.isoformat() in streak_days_set:
+        streak += 1
+        cursor = cursor - timedelta(days=1)
+
+    return {
+        "enrollment": enr,
+        "totals": {
+            "total_lectures": total_lecs,
+            "completed_lectures": completed,
+            "completion_pct": int(round(completed * 100 / max(1, total_lecs))),
+            "total_watch_seconds": total_watch_sec,
+            "total_watch_hours": round(total_watch_sec / 3600.0, 2),
+            "course_total_seconds": total_sec,
+            "course_total_hours": round(total_sec / 3600.0, 2),
+            "streak_days": streak,
+        },
+        "week": [
+            {"date": d, "seconds": s, "minutes": round(s / 60.0, 1)}
+            for d, s in sorted(week_buckets.items())
+        ],
+    }
+
+
+@router.get("/{cid}/lecture/{lec_id}")
+async def lecture_detail(cid: str, lec_id: str, user=Depends(get_current_user)):
+    """Return lecture playback details + prev/next linkage.
+    Free lectures playable without enrollment; else requires enrollment."""
+    course = next((x for x in COURSES if x["id"] == cid and x.get("status") == "active"), None)
+    if not course:
+        raise HTTPException(404, "Course not found")
+    lecs = _flatten_lectures(course)
+    idx = next((i for i, l in enumerate(lecs) if l["lecture_id"] == lec_id), -1)
+    if idx < 0:
+        raise HTTPException(404, "Lecture not found")
+    lec = lecs[idx]
+
+    enrolled = False
+    if _db is not None:
+        enr = await _db.vc_enrollments.find_one({"user_id": user["user_id"], "course_id": cid})
+        enrolled = bool(enr)
+
+    if not lec["is_free"] and not enrolled:
+        raise HTTPException(403, "Enroll to watch this lecture")
+
+    # Existing progress
+    prog = None
+    if enrolled:
+        prog = await _db.vc_progress.find_one(
+            {"user_id": user["user_id"], "course_id": cid, "lecture_id": lec_id},
+            {"_id": 0},
+        )
+
+    return {
+        "course": _summary(course),
+        "lecture": lec,
+        "prev": lecs[idx - 1] if idx > 0 else None,
+        "next": lecs[idx + 1] if idx < len(lecs) - 1 else None,
+        "progress": prog or {"watched_pct": 0, "last_pos_seconds": 0, "completed": False},
+        "index": idx + 1,
+        "total": len(lecs),
+    }
