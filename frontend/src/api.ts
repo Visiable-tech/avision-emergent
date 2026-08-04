@@ -66,6 +66,17 @@ export const api = {
     req(`/live-courses/${cid}/pay/verify`, { method: 'POST', body: JSON.stringify(payload) }, true),
   liveCourseFreeEnroll: (cid: string) =>
     req(`/live-courses/${cid}/enroll/free`, { method: 'POST' }, true),
+  // Phase 2 — Learning Dashboard
+  liveCourseDashboard: (cid: string) => req(`/live-courses/dashboard/${cid}`, undefined, true),
+  liveCourseUpdateProgress: (
+    cid: string,
+    patch: { live_attended?: number; lessons_watched?: number; mocks_attempted?: number; questions_solved?: number; streak_days?: number },
+  ) =>
+    req(`/live-courses/dashboard/${cid}/progress`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }, true),
+  liveCourseSession: (sid: string) => req(`/live-courses/session/${sid}`, undefined, true),
   examInfo: (category?: string) =>
     req(`/exam-info${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   examInfoDetail: (id: string) => req(`/exam-info/${id}`),

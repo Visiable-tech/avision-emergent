@@ -119,7 +119,7 @@ export default function MyLiveCourses() {
           {enrollments.map((e) => (
             <Pressable
               key={e.id}
-              onPress={() => router.push(`/live-courses/${e.course_id}`)}
+              onPress={() => router.push(`/live-courses/dashboard/${e.course_id}`)}
               style={s.card}
               testID={`my-course-${e.course_id}`}
             >
@@ -162,12 +162,15 @@ export default function MyLiveCourses() {
                 </View>
                 <View style={s.actionsRow}>
                   <Pressable style={s.actionBtn} onPress={() => router.push(`/live-courses/${e.course_id}`)}>
-                    <Ionicons name="play-circle" size={14} color={theme.colors.brand} />
-                    <Text style={s.actionTxt}>View Course</Text>
+                    <Ionicons name="information-circle-outline" size={14} color={theme.colors.brand} />
+                    <Text style={s.actionTxt}>Course Info</Text>
                   </Pressable>
-                  <Pressable style={[s.actionBtn, { backgroundColor: theme.colors.brand, flex: 0 }]}>
+                  <Pressable
+                    style={[s.actionBtn, { backgroundColor: theme.colors.brand, flex: 0 }]}
+                    onPress={() => router.push(`/live-courses/dashboard/${e.course_id}`)}
+                  >
                     <Ionicons name="rocket-outline" size={14} color="#FFF" />
-                    <Text style={[s.actionTxt, { color: '#FFF' }]}>Start Learning</Text>
+                    <Text style={[s.actionTxt, { color: '#FFF' }]}>Continue</Text>
                   </Pressable>
                 </View>
               </View>
@@ -176,7 +179,7 @@ export default function MyLiveCourses() {
           <View style={s.tipCard}>
             <Ionicons name="information-circle" size={16} color={theme.colors.brand} />
             <Text style={s.tipTxt}>
-              Phase 2 (coming soon): full learning dashboard, live classroom, WebSocket chat, and progress tracking.
+              Phase 3 (coming soon): live classroom with real-time WebSocket chat, hand-raise & instructor polls.
             </Text>
           </View>
         </ScrollView>

@@ -631,3 +631,297 @@ async def enroll_free(cid: str, user=Depends(get_current_user)):
     await _db.lc_enrollments.insert_one(doc)
     doc.pop("_id", None)
     return {"enrollment": doc}
+
+
+# ========================================================
+#           PHASE 2 — POST-PURCHASE DASHBOARD
+# ========================================================
+# All content is deterministically generated from the course seed
+# (curriculum, faculties, batch metadata). Real live-session content
+# and playback URLs will be plugged in during Phase 3 (WebSockets +
+# classroom). "Progress" is stored on the enrollment doc under
+# `progress_state` (JSON) — updated by PATCH endpoint below.
+
+_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def _dget(user_id: str, cid: str) -> str:
+    """Deterministic seed string per user+course."""
+    return f"{user_id}:{cid}"
+
+
+def _hash_int(seed: str, mod: int) -> int:
+    return int(hashlib.md5(seed.encode()).hexdigest(), 16) % mod
+
+
+def _build_session(course: dict, day_offset: int, subj_idx: int) -> dict:
+    """Compose a synthetic scheduled session using the curriculum."""
+    curriculum = course.get("curriculum", [])
+    subj = curriculum[subj_idx % max(1, len(curriculum))] if curriculum else {"subject": "General"}
+    topics = subj.get("topics", [])
+    topic = topics[day_offset % max(1, len(topics))] if topics else "Session"
+    fac_ids = course.get("faculty_ids", [])
+    fac_id = fac_ids[subj_idx % max(1, len(fac_ids))] if fac_ids else None
+    fac = next((f for f in FACULTIES if f["id"] == fac_id), None)
+    now = datetime.now(timezone.utc)
+    # IST offset 5h30m -> approximate start-of-day
+    session_dt = (now + timedelta(days=day_offset)).replace(hour=13, minute=30, second=0, microsecond=0)  # 7 PM IST
+    is_today = day_offset == 0
+    starts_in_min = int((session_dt - now).total_seconds() / 60)
+    if is_today and starts_in_min < 0 and starts_in_min > -90:
+        status = "live"
+    elif is_today:
+        status = "upcoming" if starts_in_min > 0 else "recorded"
+    else:
+        status = "upcoming" if day_offset > 0 else "recorded"
+    return {
+        "id": f"sess-{course['id']}-{day_offset}-{subj_idx}",
+        "course_id": course["id"],
+        "subject": subj.get("subject"),
+        "topic": topic,
+        "faculty_id": fac_id,
+        "faculty_name": fac.get("name") if fac else "Faculty",
+        "faculty_avatar": fac.get("avatar") if fac else None,
+        "date_iso": session_dt.isoformat(),
+        "day_short": _DAYS[session_dt.weekday()],
+        "date_short": session_dt.strftime("%d %b"),
+        "time_short": "7:00 PM – 9:30 PM",
+        "starts_in_min": starts_in_min,
+        "status": status,
+        # Phase 1 uses mocked demo video url for playback fallback
+        "video_url": course.get("demo_video_url"),
+        "duration_min": 150,
+    }
+
+
+def _dashboard_payload(course: dict, enrollment: dict, user_id: str) -> dict:
+    curriculum = course.get("curriculum", [])
+    total_subjects = len(curriculum)
+
+    # ---- Progress state (persisted on enrollment doc) ----
+    state = enrollment.get("progress_state") or {}
+    lessons_watched = int(state.get("lessons_watched", 0))
+    live_attended = int(state.get("live_attended", 0))
+    mocks_attempted = int(state.get("mocks_attempted", 0))
+    questions_solved = int(state.get("questions_solved", 0))
+    streak_days = int(state.get("streak_days", _hash_int(_dget(user_id, course["id"]) + ":streak", 12) + 1))
+
+    total_sessions = course.get("sessions_count", 200)
+    total_mocks = course.get("mock_tests_count", 100)
+    # Overall course progress: weighted average
+    prog_pct = min(
+        100,
+        int((live_attended / max(1, total_sessions)) * 60
+            + (mocks_attempted / max(1, total_mocks)) * 25
+            + (lessons_watched / max(1, total_sessions * 2)) * 15)
+    )
+
+    # ---- Today's schedule (2 sessions) ----
+    today = [
+        _build_session(course, 0, 0),
+        _build_session(course, 0, 1),
+    ]
+    # ---- Upcoming next 5 days ----
+    upcoming = [_build_session(course, d, d % max(1, total_subjects)) for d in range(1, 6)]
+
+    # ---- Next Action determination ----
+    live_now = next((s for s in today if s["status"] == "live"), None)
+    next_upcoming = next((s for s in today + upcoming if s["status"] == "upcoming"), None)
+    if live_now:
+        next_action = {
+            "type": "live_now",
+            "title": f"🔴 LIVE: {live_now['subject']}",
+            "subtitle": f"{live_now['faculty_name']} • {live_now['topic']}",
+            "cta_label": "Join Live",
+            "cta_route": f"/live-courses/session/{live_now['id']}",
+            "accent": "#EF4444",
+            "meta": "Live now • Don't miss it",
+        }
+    elif next_upcoming and next_upcoming.get("starts_in_min", 999) <= 24 * 60:
+        mins = max(0, next_upcoming["starts_in_min"])
+        hrs = mins // 60
+        rem = mins % 60
+        meta = f"Starts in {hrs}h {rem}m" if hrs else f"Starts in {mins} min"
+        next_action = {
+            "type": "live_upcoming",
+            "title": f"Next: {next_upcoming['subject']}",
+            "subtitle": f"{next_upcoming['faculty_name']} • {next_upcoming['topic']}",
+            "cta_label": "Set Reminder",
+            "cta_route": f"/live-courses/session/{next_upcoming['id']}",
+            "accent": "#0B4DB8",
+            "meta": meta,
+        }
+    elif mocks_attempted < 3:
+        next_action = {
+            "type": "test",
+            "title": "Attempt your Daily Mock",
+            "subtitle": "Boost accuracy with a 15-min sectional",
+            "cta_label": "Start Test",
+            "cta_route": "/test-prime",
+            "accent": "#7C3AED",
+            "meta": "Recommended today",
+        }
+    else:
+        next_action = {
+            "type": "recording",
+            "title": "Continue where you left off",
+            "subtitle": (curriculum[0]["subject"] if curriculum else "Live Class") + " • Recorded Class",
+            "cta_label": "Resume",
+            "cta_route": f"/live-courses/dashboard/{course['id']}",
+            "accent": "#059669",
+            "meta": "Recorded • 45 min",
+        }
+
+    # ---- Today's Target (with completion tracking from state) ----
+    today_target = {
+        "targets": [
+            {"key": "live", "label": "Live Classes", "icon": "videocam", "done": min(2, live_attended % 3), "total": 2},
+            {"key": "video", "label": "Recorded Videos", "icon": "play-circle", "done": min(3, lessons_watched % 4), "total": 3},
+            {"key": "questions", "label": "Questions", "icon": "checkmark-done", "done": min(30, questions_solved % 45), "total": 30},
+        ],
+        "streak_days": streak_days,
+    }
+    # completion pct
+    total_target_pct = 0
+    for t in today_target["targets"]:
+        total_target_pct += (t["done"] / max(1, t["total"])) * 100
+    today_target["completion_pct"] = int(total_target_pct / max(1, len(today_target["targets"])))
+
+    # ---- Subject Progress ----
+    subject_progress = []
+    for i, s in enumerate(curriculum):
+        topics = s.get("topics", [])
+        total_topics = len(topics)
+        # Deterministic done count per user+subject
+        done = _hash_int(_dget(user_id, course["id"]) + f":subj:{i}", max(1, total_topics + 1))
+        done = min(done, total_topics)
+        subject_progress.append({
+            "subject": s.get("subject"),
+            "hours": s.get("hours"),
+            "total_topics": total_topics,
+            "done_topics": done,
+            "pct": int((done / max(1, total_topics)) * 100),
+            "faculty_id": (course.get("faculty_ids", [None])[i % max(1, len(course.get("faculty_ids", [])) or 1)]),
+        })
+
+    # ---- Recent Recordings ----
+    recent_recordings = []
+    for i in range(min(4, total_subjects)):
+        s = curriculum[i]
+        topics = s.get("topics", [])
+        topic = topics[0] if topics else "Session"
+        recent_recordings.append({
+            "id": f"rec-{course['id']}-{i}",
+            "title": topic,
+            "subject": s.get("subject"),
+            "duration": "1h 45m",
+            "watched_pct": _hash_int(_dget(user_id, course["id"]) + f":rec:{i}", 101),
+            "thumbnail": course.get("banner_image"),
+            "date_short": (datetime.now(timezone.utc) - timedelta(days=i + 1)).strftime("%d %b"),
+        })
+
+    # ---- Quick Stats ----
+    days_remaining = None
+    if enrollment.get("expires_at"):
+        try:
+            exp = datetime.fromisoformat(enrollment["expires_at"].replace("Z", "+00:00"))
+            delta = exp - datetime.now(timezone.utc)
+            days_remaining = max(0, delta.days)
+        except Exception:
+            days_remaining = None
+
+    stats = {
+        "classes_attended": live_attended,
+        "total_classes": total_sessions,
+        "mocks_attempted": mocks_attempted,
+        "total_mocks": total_mocks,
+        "videos_watched": lessons_watched,
+        "avg_accuracy_pct": 70 + _hash_int(_dget(user_id, course["id"]) + ":acc", 25),
+        "days_remaining": days_remaining,
+    }
+
+    return {
+        "course": _summary(course),
+        "enrollment": {
+            "id": enrollment.get("id"),
+            "enrolled_at": enrollment.get("enrolled_at"),
+            "expires_at": enrollment.get("expires_at"),
+            "progress_pct": prog_pct,
+            "status": enrollment.get("status", "active"),
+            "days_remaining": days_remaining,
+        },
+        "next_action": next_action,
+        "today_target": today_target,
+        "today_schedule": today,
+        "upcoming_sessions": upcoming,
+        "subject_progress": subject_progress,
+        "recent_recordings": recent_recordings,
+        "stats": stats,
+        "faculties": [f for f in FACULTIES if f["id"] in course.get("faculty_ids", [])],
+    }
+
+
+@router.get("/dashboard/{cid}")
+async def learning_dashboard(cid: str, user=Depends(get_current_user)):
+    """Return the full learning-dashboard payload for an enrolled course."""
+    if _db is None:
+        raise HTTPException(500, "Not initialised")
+    course = next((c for c in COURSES if c["id"] == cid and c.get("status") == "active"), None)
+    if not course:
+        raise HTTPException(404, "Course not found")
+    enrollment = await _db.lc_enrollments.find_one({"user_id": user["user_id"], "course_id": cid}, {"_id": 0})
+    if not enrollment:
+        raise HTTPException(403, "Not enrolled in this course")
+    return _dashboard_payload(course, enrollment, user["user_id"])
+
+
+@router.patch("/dashboard/{cid}/progress")
+async def update_progress(cid: str, body: dict, user=Depends(get_current_user)):
+    """PATCH progress increments on the enrollment.
+    body accepts: {live_attended, lessons_watched, mocks_attempted, questions_solved,
+                   streak_days}. Values are added atomically."""
+    if _db is None:
+        raise HTTPException(500, "Not initialised")
+    e = await _db.lc_enrollments.find_one({"user_id": user["user_id"], "course_id": cid}, {"_id": 0})
+    if not e:
+        raise HTTPException(403, "Not enrolled")
+    state = e.get("progress_state") or {}
+    allowed = {"live_attended", "lessons_watched", "mocks_attempted", "questions_solved"}
+    for k, v in body.items():
+        if k in allowed:
+            state[k] = int(state.get(k, 0)) + int(v)
+    if "streak_days" in body:
+        state["streak_days"] = int(body["streak_days"])
+    await _db.lc_enrollments.update_one(
+        {"user_id": user["user_id"], "course_id": cid},
+        {"$set": {"progress_state": state, "last_activity_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"ok": True, "progress_state": state}
+
+
+@router.get("/session/{sid}")
+async def session_detail(sid: str, user=Depends(get_current_user)):
+    """Detail for a synthetic session id like `sess-<courseId>-<dayOffset>-<subjIdx>`.
+    Used by the classroom placeholder (Phase 3 will replace video_url with real live/recorded)."""
+    if not sid.startswith("sess-"):
+        raise HTTPException(400, "Invalid session id")
+    rest = sid[len("sess-"):]
+    # rest looks like "<courseId>-<dayOffset>-<subjIdx>"
+    try:
+        # course id can contain dashes — split from the right
+        head, day_off_str, subj_idx_str = rest.rsplit("-", 2)
+        day_offset = int(day_off_str)
+        subj_idx = int(subj_idx_str)
+    except Exception:
+        raise HTTPException(400, "Malformed session id")
+    course = next((c for c in COURSES if c["id"] == head), None)
+    if not course:
+        raise HTTPException(404, "Course not found")
+    if _db is not None:
+        e = await _db.lc_enrollments.find_one({"user_id": user["user_id"], "course_id": course["id"]})
+        if not e:
+            raise HTTPException(403, "Not enrolled in this course")
+    return {
+        "session": _build_session(course, day_offset, subj_idx),
+        "course": _summary(course),
+    }

@@ -64,7 +64,7 @@ export default function LiveCourseDetail() {
       return;
     }
     if (course?.is_enrolled) {
-      router.push('/live-courses/my-courses');
+      router.push(`/live-courses/dashboard/${id}`);
       return;
     }
     setEnrolling(true);
@@ -87,7 +87,7 @@ export default function LiveCourseDetail() {
               try {
                 await api.liveCourseVerify(id!, resp);
                 Alert.alert('Enrolled Successfully', `You are now enrolled in ${course.name}!`, [
-                  { text: 'View My Courses', onPress: () => router.replace('/live-courses/my-courses') },
+                  { text: 'Go to Dashboard', onPress: () => router.replace(`/live-courses/dashboard/${id}`) },
                 ]);
                 load();
               } catch (e: any) {
@@ -111,7 +111,7 @@ export default function LiveCourseDetail() {
                 try {
                   await api.liveCourseFreeEnroll(id!);
                   Alert.alert('Enrolled', 'Demo enrollment created.', [
-                    { text: 'My Courses', onPress: () => router.replace('/live-courses/my-courses') },
+                    { text: 'Open Dashboard', onPress: () => router.replace(`/live-courses/dashboard/${id}`) },
                   ]);
                   load();
                 } catch (e: any) {
