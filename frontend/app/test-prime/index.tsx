@@ -21,6 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, Stack } from 'expo-router';
 import { api } from '@/src/api';
 import { useAuth } from '@/src/AuthContext';
+import { openRazorpayWeb } from '@/src/razorpay';
 
 // Enable LayoutAnimation on Android for smooth expand/collapse
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -151,13 +152,36 @@ export default function TestPrimeLanding() {
     if (!user?.user_id || !selectedPlan) return;
     try {
       setActivating(true);
-      const days = selectedPlan.months * 30;
-      const r = await api.tpActivate(user.user_id, 'prime', days);
-      setEnt(r);
-      setChoosePlanOpen(false);
+      // 1. Create order on backend
+      const order = await api.tpCreateOrder(user.user_id, selectedPlan.id);
+      // 2. Open Razorpay checkout (Web + fallback)
+      if (Platform.OS === 'web') {
+        await openRazorpayWeb(order, {
+          name: user.name || 'Aspirant',
+          email: user.email || '',
+          onSuccess: async (resp: any) => {
+            try {
+              const r = await api.tpVerifyPayment(user.user_id!, resp);
+              setEnt(r.entitlement);
+              setChoosePlanOpen(false);
+            } catch (err) {
+              console.warn('verify failed', err);
+            } finally {
+              setActivating(false);
+            }
+          },
+          onFail: () => setActivating(false),
+        });
+      } else {
+        // Native: fall back to activating with demo flow (react-native-razorpay requires dev build)
+        const days = selectedPlan.months * 30;
+        const r = await api.tpActivate(user.user_id, 'prime', days);
+        setEnt(r);
+        setChoosePlanOpen(false);
+        setActivating(false);
+      }
     } catch (e) {
-      console.warn('activate', e);
-    } finally {
+      console.warn('choose plan', e);
       setActivating(false);
     }
   };

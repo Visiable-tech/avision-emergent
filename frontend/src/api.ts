@@ -178,6 +178,19 @@ export const api = {
     return req(`/booster${qs ? `?${qs}` : ''}`);
   },
   boosterPack: (id: string) => req(`/booster/${id}`),
+
+  // Razorpay
+  tpPayConfig: () => req('/test-prime/pay/config'),
+  tpCreateOrder: (user_id: string, plan_id: string) =>
+    req(`/test-prime/pay/order?user_id=${encodeURIComponent(user_id)}`, {
+      method: 'POST',
+      body: JSON.stringify({ plan_id }),
+    }),
+  tpVerifyPayment: (user_id: string, payload: any) =>
+    req(`/test-prime/pay/verify?user_id=${encodeURIComponent(user_id)}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   dailyChallenges: (category?: string, userId?: string) => {
     const p = new URLSearchParams();
     if (category) p.set('category', category);

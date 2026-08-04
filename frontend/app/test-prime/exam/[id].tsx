@@ -16,6 +16,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { api } from '@/src/api';
 import { useAuth } from '@/src/AuthContext';
+import { openRazorpayWeb } from '@/src/razorpay';
 
 // Categories with color coding for the "What You'll Get" grid
 const CATEGORY_META: {
@@ -105,11 +106,29 @@ export default function TestPrimeExamDetail() {
     }
     try {
       setActivating(true);
-      const r = await api.tpActivate(user.user_id, 'prime', 365);
-      setEnt(r);
-      await load();
+      if (Platform.OS === 'web') {
+        // Default to 12-month plan for a quick unlock from the exam page
+        const order = await api.tpCreateOrder(user.user_id, '12m');
+        await openRazorpayWeb(order, {
+          name: user.name || 'Aspirant',
+          email: user.email || '',
+          onSuccess: async (resp: any) => {
+            try {
+              const r = await api.tpVerifyPayment(user.user_id!, resp);
+              setEnt(r.entitlement);
+              await load();
+            } catch {}
+            setActivating(false);
+          },
+          onFail: () => setActivating(false),
+        });
+      } else {
+        const r = await api.tpActivate(user.user_id, 'prime', 365);
+        setEnt(r);
+        await load();
+        setActivating(false);
+      }
     } catch {
-    } finally {
       setActivating(false);
     }
   };

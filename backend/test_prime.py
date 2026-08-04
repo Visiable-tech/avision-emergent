@@ -1257,6 +1257,123 @@ async def _register_admin_tests(db):
             TESTS.append(d)
 
 
+# ==================== RAZORPAY PAYMENTS ====================
+import hmac as _hmac
+import hashlib as _hashlib
+try:
+    import razorpay as _razorpay
+except Exception:
+    _razorpay = None
+
+_RZP_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
+_RZP_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
+_rzp_client = None
+
+
+def _get_rzp():
+    """Lazily initialize Razorpay client (env may be loaded after import)."""
+    global _rzp_client, _RZP_KEY_ID, _RZP_KEY_SECRET
+    if _rzp_client is not None:
+        return _rzp_client
+    _RZP_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "") or _RZP_KEY_ID
+    _RZP_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "") or _RZP_KEY_SECRET
+    if _razorpay and _RZP_KEY_ID and _RZP_KEY_SECRET:
+        _rzp_client = _razorpay.Client(auth=(_RZP_KEY_ID, _RZP_KEY_SECRET))
+    return _rzp_client
+
+
+@router.get("/pay/config")
+async def rzp_config():
+    client = _get_rzp()
+    return {"key_id": _RZP_KEY_ID, "enabled": bool(client)}
+
+
+@router.post("/pay/order")
+async def rzp_create_order(user_id: str, body: dict):
+    """Create a Razorpay order for the selected plan. body: {plan_id}"""
+    client = _get_rzp()
+    if not client:
+        raise HTTPException(503, "Payment gateway not configured")
+    plan_id = body.get("plan_id")
+    plan = next((p for p in TP_PLANS if p["id"] == plan_id), None)
+    if not plan:
+        raise HTTPException(400, "Invalid plan_id")
+    amount_paise = int(plan["price"]) * 100
+    receipt = f"tp_{plan_id}_{uuid.uuid4().hex[:12]}"
+    try:
+        order = client.order.create({
+            "amount": amount_paise,
+            "currency": "INR",
+            "receipt": receipt,
+            "notes": {"user_id": user_id, "plan_id": plan_id, "months": plan["months"]},
+        })
+    except Exception as exc:
+        raise HTTPException(502, f"Razorpay order failed: {exc}")
+
+    await _db.tp_orders.insert_one({
+        "order_id": order["id"],
+        "user_id": user_id,
+        "plan_id": plan_id,
+        "months": plan["months"],
+        "amount_paise": amount_paise,
+        "status": "created",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {
+        "key_id": _RZP_KEY_ID,
+        "order_id": order["id"],
+        "amount": amount_paise,
+        "currency": "INR",
+        "plan": plan,
+        "receipt": receipt,
+    }
+
+
+@router.post("/pay/verify")
+async def rzp_verify(user_id: str, body: dict):
+    """Verify HMAC signature and activate Prime on success.
+    body: {razorpay_order_id, razorpay_payment_id, razorpay_signature}"""
+    order_id = body.get("razorpay_order_id")
+    payment_id = body.get("razorpay_payment_id")
+    signature = body.get("razorpay_signature")
+    if not (order_id and payment_id and signature):
+        raise HTTPException(400, "Missing payment fields")
+    stored = await _db.tp_orders.find_one({"order_id": order_id, "user_id": user_id})
+    if not stored:
+        raise HTTPException(404, "Unknown order")
+
+    message = f"{order_id}|{payment_id}".encode()
+    expected = _hmac.new(_RZP_KEY_SECRET.encode(), message, _hashlib.sha256).hexdigest()
+    if not _hmac.compare_digest(expected, signature):
+        await _db.tp_orders.update_one({"order_id": order_id}, {"$set": {"status": "signature_failed"}})
+        raise HTTPException(400, "Invalid signature")
+
+    await _db.tp_orders.update_one(
+        {"order_id": order_id},
+        {"$set": {
+            "status": "paid",
+            "payment_id": payment_id,
+            "signature": signature,
+            "paid_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    # Activate Prime for the plan duration
+    days = int(stored.get("months", 12)) * 30
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    ent = await _db.tp_entitlements.find_one({"user_id": user_id}, {"_id": 0}) or {
+        "user_id": user_id, "is_prime": False, "unlocked_exams": [],
+        "unlocked_categories": [], "plan": None, "expires_at": None,
+    }
+    ent["is_prime"] = True
+    ent["plan"] = "Test Prime"
+    ent["expires_at"] = (now + timedelta(days=days)).isoformat()
+    ent["activated_at"] = now.isoformat()
+    await _db.tp_entitlements.update_one({"user_id": user_id}, {"$set": ent}, upsert=True)
+    ent.pop("_id", None)
+    return {"verified": True, "entitlement": ent}
+
+
 async def ensure_test_prime_indexes(db):
     await db.tp_entitlements.create_index("user_id", unique=True)
     await db.tp_attempts.create_index("attempt_id", unique=True)
@@ -1264,4 +1381,5 @@ async def ensure_test_prime_indexes(db):
     await db.tp_questions.create_index("id", unique=True)
     await db.tp_questions.create_index([("subject", 1), ("topic", 1)])
     await db.tp_admin_tests.create_index("id", unique=True)
+    await db.tp_orders.create_index("order_id", unique=True)
     await _register_admin_tests(db)
