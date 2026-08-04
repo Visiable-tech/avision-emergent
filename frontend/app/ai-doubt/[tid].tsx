@@ -260,6 +260,7 @@ export default function AiDoubtChat() {
                 }
                 style={s.iconBtn}
                 hitSlop={10}
+                testID="aid-chat-delete"
               >
                 <Ionicons name="trash-outline" size={18} color="#FFF" />
               </Pressable>
@@ -389,6 +390,9 @@ function MarkdownText({ content, isMe }: { content: string; isMe: boolean }) {
       const idx = trimmed.split('.')[0];
       prefix = `${idx}.  `;
       line = trimmed.replace(/^\d+\.\s/, '');
+    } else if (trimmed.startsWith('> ')) {
+      style = [s.quote, isMe && { color: 'rgba(255,255,255,0.9)', borderLeftColor: 'rgba(255,255,255,0.5)' }];
+      line = trimmed.slice(2);
     } else if (trimmed.startsWith('---')) {
       nodes.push(<View key={`hr-${li}`} style={[s.hr, isMe && { backgroundColor: 'rgba(255,255,255,0.35)' }]} />);
       return;
@@ -469,6 +473,7 @@ const s = StyleSheet.create({
   h2: { fontSize: 14.5, fontWeight: '900', color: theme.colors.onSurface, marginVertical: 4 },
   h3: { fontSize: 13.5, fontWeight: '900', color: theme.colors.onSurface, marginVertical: 3 },
   body: { fontSize: 13.5, color: theme.colors.onSurface, lineHeight: 20 },
+  quote: { fontSize: 13, color: theme.colors.onSurfaceSecondary, lineHeight: 20, fontStyle: 'italic', paddingLeft: 10, borderLeftWidth: 3, borderLeftColor: theme.colors.brand + '55', marginLeft: 2 },
   hr: { height: 1, backgroundColor: theme.colors.border, marginVertical: 6 },
 
   attachBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: theme.colors.surface, borderTopWidth: 1, borderTopColor: theme.colors.border },

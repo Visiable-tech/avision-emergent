@@ -223,9 +223,13 @@ async def send_message(tid: str, body: dict, user=Depends(get_current_user)):
         "ts": datetime.now(timezone.utc).isoformat(),
     }
     await _db.ai_messages.insert_one(ai_msg)
+    # Update thread — set title from first user message if it was previously empty
+    update_set = {"updated_at": ai_msg["ts"], "last_message": reply_text[:120]}
+    if thread.get("message_count", 0) == 0 and thread.get("title") in (None, "", "New doubt") and text:
+        update_set["title"] = await _title_from(text)
     await _db.ai_threads.update_one(
         {"id": tid},
-        {"$set": {"updated_at": ai_msg["ts"], "last_message": reply_text[:120]}, "$inc": {"message_count": 2}},
+        {"$set": update_set, "$inc": {"message_count": 2}},
     )
     # Redact image + strip ObjectId before returning
     u = {**user_msg}; u["image_base64"] = None; u.pop("_id", None)
