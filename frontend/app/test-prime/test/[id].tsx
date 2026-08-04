@@ -1,22 +1,34 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Platform, StatusBar as RNStatusBar, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Platform,
+  StatusBar as RNStatusBar,
+  Alert,
+  Modal,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { theme } from '@/src/theme';
 import { api } from '@/src/api';
 import { useAuth } from '@/src/AuthContext';
 
-const LANGS = ['English', 'Hindi', 'Bengali'];
+const LANGS = ['English', 'Hindi', 'Bengali', 'Tamil', 'Telugu'];
 
 export default function TestPrimeInstructions() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
+
   const [test, setTest] = useState<any>(null);
-  const [checked, setChecked] = useState(false);
   const [lang, setLang] = useState<string>('English');
+  const [langOpen, setLangOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -26,18 +38,22 @@ export default function TestPrimeInstructions() {
         setTest(t);
         const l0 = (t?.pattern?.language || t?.language || 'English').split('+')[0].trim();
         if (LANGS.includes(l0)) setLang(l0);
-      } catch (e) { console.warn('inst', e); }
+      } catch {}
     })();
   }, [id, user?.user_id]);
 
+  const sections = useMemo(() => {
+    const p = test?.pattern;
+    return (p?.sections as any[]) || [];
+  }, [test]);
+
+  const negative = test?.pattern?.negative_marking ?? 0;
+  const totalDurationMin = test?.duration_min ?? test?.pattern?.total_duration_min ?? 60;
+
   const startTest = async () => {
     if (!test) return;
-    if (!test.unlocked) {
+    if (!test.unlocked && !test.is_free) {
       Alert.alert('Prime Required', 'Unlock this test with Test Prime to continue.');
-      return;
-    }
-    if (!checked) {
-      Alert.alert('Please confirm', 'Tick the checkbox to confirm you have read the instructions.');
       return;
     }
     if (!user?.user_id) {
@@ -45,222 +61,303 @@ export default function TestPrimeInstructions() {
       return;
     }
     try {
+      setStarting(true);
       const attempt = await api.tpStartAttempt(user.user_id, test.id, lang);
       router.replace(`/test-prime/attempt/${attempt.attempt_id}` as any);
     } catch (e: any) {
       Alert.alert('Could not start', e?.message || 'Please try again.');
+    } finally {
+      setStarting(false);
     }
-  };
-
-  const activatePrime = async () => {
-    if (!user?.user_id) return;
-    try {
-      await api.tpActivate(user.user_id, 'prime', 365);
-      const t = await api.tpTestDetail(id!, user.user_id);
-      setTest(t);
-    } catch {}
   };
 
   if (!test) {
     return (
-      <View style={s.loading}>
+      <View style={s.center}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text style={{ color: theme.colors.muted }}>Loading…</Text>
+        <ActivityIndicator color="#2563EB" size="large" />
       </View>
     );
   }
 
-  const p = test.pattern || {};
-
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.surfaceSecondary }}>
+    <View style={{ flex: 1, backgroundColor: '#FFF' }}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Hero */}
-      <LinearGradient colors={[theme.colors.brand, theme.colors.brandDark]} style={s.hero}>
-        <SafeAreaView edges={['top']}>
-          <View style={s.headerRow}>
-            <Pressable onPress={() => router.back()} testID="tpi-back" hitSlop={12} style={s.iconBtn}>
-              <Ionicons name="chevron-back" size={22} color="#FFF" />
-            </Pressable>
-            <View style={s.crownRow}>
-              <MaterialCommunityIcons name="crown" size={12} color="#FCD34D" />
-              <Text style={s.crownTxt}>TEST PRIME</Text>
-            </View>
-            <View style={{ flex: 1 }} />
-            {test.is_free ? (
-              <View style={s.freeChip}><Text style={s.freeChipTxt}>FREE</Text></View>
-            ) : test.unlocked ? (
-              <View style={s.unlockedChip}><Ionicons name="checkmark-circle" size={11} color="#065F46" /><Text style={s.unlockedTxt}>UNLOCKED</Text></View>
-            ) : (
-              <View style={s.lockChip}><Ionicons name="lock-closed" size={11} color="#FFF" /><Text style={s.lockChipTxt}>PRIME</Text></View>
-            )}
-          </View>
-          <Text style={s.title}>{test.name}</Text>
-          <Text style={s.sub}>{test.exam_name} • {test.stage} • Pattern v{p.version || '—'}</Text>
-        </SafeAreaView>
-      </LinearGradient>
+      {/* Top bar */}
+      <SafeAreaView edges={['top']} style={s.topBar}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={s.iconBtn} testID="tpi-back">
+          <Ionicons name="arrow-back" size={22} color="#0F172A" />
+        </Pressable>
+        <Text style={s.headTxt}>Instructions</Text>
+        <View style={{ width: 30 }} />
+      </SafeAreaView>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
-        {/* Stat grid */}
-        <View style={s.statGrid}>
-          <Stat icon="document-text-outline" val={String(test.questions)} lbl="Questions" />
-          <Stat icon="calculator-outline" val={String(test.marks)} lbl="Marks" />
-          <Stat icon="time-outline" val={`${test.duration_min}m`} lbl="Duration" />
-          <Stat icon="close-circle-outline" val={`-${p.negative_marking ?? 0}`} lbl="Negative" />
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false}>
+        {/* Test name */}
+        <Text style={s.testName}>{test.name}</Text>
+
+        <View style={s.divider} />
+
+        {/* Stat pills */}
+        <View style={s.pillRow}>
+          <StatPill val={String(test.questions)} lbl="Total Questions" />
+          <StatPill val={String(test.marks)} lbl="Maximum Marks" />
+          <StatPill val={`${totalDurationMin} mins`} lbl="Duration" />
         </View>
 
-        {/* Sections */}
-        {p.sections?.length ? (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Sections</Text>
-            <View style={s.tblHead}>
-              <Text style={[s.tCell, { flex: 2 }]}>Section</Text>
-              <Text style={s.tCell}>Qs</Text>
-              <Text style={s.tCell}>Marks</Text>
-              <Text style={s.tCell}>Time</Text>
+        <View style={s.divider} />
+
+        <Text style={s.heading}>Please read the following instructions very carefully:</Text>
+
+        {/* Section table */}
+        {sections.length > 0 && (
+          <View style={s.table}>
+            <View style={[s.trow, s.thead]}>
+              <TCell w={40} bold>S.No.</TCell>
+              <TCell flex bold>Name of test</TCell>
+              <TCell w={70} bold center>No of{'\n'}Questions</TCell>
+              <TCell w={60} bold center>Max.{'\n'}Marks</TCell>
+              <TCell w={70} bold center>Duration</TCell>
             </View>
-            {p.sections.map((sec: any, i: number) => (
-              <View key={i} style={s.tblRow}>
-                <Text style={[s.tCell, { flex: 2, fontWeight: '800', color: theme.colors.onSurface }]} numberOfLines={2}>{sec.name}</Text>
-                <Text style={s.tCell}>{sec.questions}</Text>
-                <Text style={s.tCell}>{sec.marks}</Text>
-                <Text style={s.tCell}>{sec.duration_min}m</Text>
+            {sections.map((sec: any, i: number) => (
+              <View key={i} style={s.trow}>
+                <TCell w={40} center>{i + 1}</TCell>
+                <TCell flex center>{sec.name}</TCell>
+                <TCell w={70} center>{sec.questions}</TCell>
+                <TCell w={60} center>{sec.marks}</TCell>
+                <TCell w={70} center>{sec.duration_min} min</TCell>
               </View>
             ))}
-            {p.sectional_timing && (
-              <View style={s.warnBox}>
-                <Ionicons name="warning-outline" size={13} color="#B45309" />
-                <Text style={s.warnTxt}>Sectional timing enabled – you cannot jump to another section before its time.</Text>
-              </View>
-            )}
+            <View style={s.trow}>
+              <TCell w={40} bold center>—</TCell>
+              <TCell flex bold center>Total</TCell>
+              <TCell w={70} bold center>{test.questions}</TCell>
+              <TCell w={60} bold center>{test.marks}</TCell>
+              <TCell w={70} bold center>
+                {totalDurationMin >= 60 ? `${Math.floor(totalDurationMin / 60)} Hour${totalDurationMin >= 120 ? 's' : ''}` : `${totalDurationMin} min`}
+              </TCell>
+            </View>
           </View>
-        ) : null}
+        )}
 
-        {/* Language */}
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Language</Text>
-          <Text style={s.cardSub}>Available: {p.language || test.language}</Text>
-          <View style={s.langRow}>
+        {/* Numbered instructions */}
+        <View style={{ marginTop: 16 }}>
+          <Rule n={1}>
+            You have <B>{totalDurationMin} minutes</B> to complete the test.
+          </Rule>
+          <Rule n={2}>
+            The test contains a total of <B>{test.questions} questions and {test.marks} Marks</B>.
+          </Rule>
+          <Rule n={3}>
+            There is only one correct answer to each question. Click on the most appropriate option to mark it as your answer.
+          </Rule>
+          <Rule n={4}>
+            You will be awarded <B>{Math.round(((test.marks || 1) / (test.questions || 1)) * 100) / 100}</B> mark(s) for each correct answer.
+          </Rule>
+          <Rule n={5}>
+            There is <B>{negative > 0 ? `${negative} penalty` : 'no penalty'}</B> mark for each wrong answer.
+          </Rule>
+          <Rule n={6}>You can change your answer by clicking on some other option.</Rule>
+          <Rule n={7}>
+            You can unmark your answer by clicking on the <B>{'"Clear Response"'}</B> button.
+          </Rule>
+          <Rule n={8}>
+            A number list of all questions appears in the palette. You can access the questions in any order within a section or across sections by clicking on the question number.
+          </Rule>
+          <Rule n={9}>
+            You can use rough sheets while taking the test. Do not use calculators, log tables, dictionaries, or any other printed/online reference material during the test.
+          </Rule>
+          <Rule n={10}>
+            Do not click the button <B>{'"Submit test"'}</B> before completing the test. A test once submitted cannot be resumed.
+          </Rule>
+        </View>
+      </ScrollView>
+
+      {/* Footer */}
+      <View style={[s.footer, { paddingBottom: 12 + insets.bottom }]}>
+        <Pressable onPress={() => setLangOpen(true)} style={s.langBtn} testID="tpi-lang">
+          <MaterialCommunityIcons name="translate" size={16} color="#2563EB" />
+          <Text style={s.langTxt}>{lang}</Text>
+          <Ionicons name="chevron-down" size={14} color="#2563EB" />
+        </Pressable>
+
+        <Pressable
+          onPress={startTest}
+          disabled={starting}
+          style={({ pressed }) => [s.startBtn, pressed && { transform: [{ scale: 0.97 }], opacity: 0.94 }]}
+          testID="tpi-start"
+        >
+          {starting ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={s.startTxt}>Start Test</Text>
+          )}
+        </Pressable>
+      </View>
+
+      {/* Language modal */}
+      <Modal visible={langOpen} transparent animationType="fade" onRequestClose={() => setLangOpen(false)}>
+        <Pressable style={s.mBg} onPress={() => setLangOpen(false)}>
+          <Pressable style={[s.mSheet, { paddingBottom: 20 + insets.bottom }]}>
+            <View style={s.mHandle} />
+            <Text style={s.mTitle}>Select Test Language</Text>
             {LANGS.map((l) => (
               <Pressable
                 key={l}
+                onPress={() => {
+                  setLang(l);
+                  setLangOpen(false);
+                }}
+                style={[s.langRow, lang === l && s.langRowActive]}
                 testID={`tpi-lang-${l}`}
-                onPress={() => setLang(l)}
-                style={[s.langChip, lang === l && s.langChipActive]}
               >
-                <Text style={[s.langChipTxt, lang === l && { color: '#FFF' }]}>{l}</Text>
+                <MaterialCommunityIcons name="translate" size={16} color={lang === l ? '#2563EB' : '#64748B'} />
+                <Text style={[s.langRowTxt, lang === l && { color: '#2563EB', fontWeight: '900' }]}>{l}</Text>
+                {lang === l && <Ionicons name="checkmark-circle" size={18} color="#2563EB" style={{ marginLeft: 'auto' }} />}
               </Pressable>
             ))}
-          </View>
-        </View>
-
-        {/* Instructions */}
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Important Instructions</Text>
-          {[
-            'Answer all questions carefully. Only one option is correct per question.',
-            `Positive marks: +${(p.total_marks && p.total_questions) ? (p.total_marks / p.total_questions).toFixed(2) : '1'} per correct answer.`,
-            `Negative marks: -${p.negative_marking ?? 0} per wrong answer.`,
-            'You may mark questions for review and revisit them later.',
-            'The timer runs continuously. Auto-submission occurs at 00:00.',
-            'Answers are saved automatically – accidental exit will not lose progress.',
-          ].map((line, i) => (
-            <View key={i} style={s.instRow}>
-              <View style={s.instDot} />
-              <Text style={s.instTxt}>{line}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Checkbox */}
-        <Pressable
-          testID="tpi-agree"
-          style={s.agreeRow}
-          onPress={() => setChecked((c) => !c)}
-        >
-          <View style={[s.checkbox, checked && s.checkboxOn]}>
-            {checked ? <Ionicons name="checkmark" size={14} color="#FFF" /> : null}
-          </View>
-          <Text style={s.agreeTxt}>I have read and understood all the instructions.</Text>
+          </Pressable>
         </Pressable>
-      </ScrollView>
-
-      {/* Sticky start bar */}
-      <SafeAreaView edges={['bottom']} style={s.stickyBar}>
-        <View style={{ flex: 1 }}>
-          <Text style={s.startLbl}>Total Time</Text>
-          <Text style={s.startVal}>{test.duration_min}:00</Text>
-        </View>
-        {test.unlocked ? (
-          <Pressable style={s.startBtn} onPress={startTest} testID="tpi-start">
-            <Ionicons name="play" size={16} color="#FFF" />
-            <Text style={s.startBtnTxt}>START TEST</Text>
-          </Pressable>
-        ) : (
-          <Pressable style={s.unlockBtn} onPress={activatePrime} testID="tpi-unlock">
-            <MaterialCommunityIcons name="crown" size={16} color="#FFF" />
-            <Text style={s.startBtnTxt}>Unlock with Prime</Text>
-          </Pressable>
-        )}
-      </SafeAreaView>
+      </Modal>
     </View>
   );
 }
 
-function Stat({ icon, val, lbl }: any) {
+function StatPill({ val, lbl }: any) {
   return (
-    <View style={s.stat}>
-      <View style={s.statIcon}><Ionicons name={icon} size={14} color={theme.colors.brand} /></View>
-      <Text style={s.statVal}>{val}</Text>
+    <View style={s.statCol}>
+      <View style={s.statPill}>
+        <Text style={s.statVal}>{val}</Text>
+      </View>
       <Text style={s.statLbl}>{lbl}</Text>
     </View>
   );
 }
 
+function Rule({ n, children }: any) {
+  return (
+    <View style={s.ruleRow}>
+      <Text style={s.ruleN}>{n}.</Text>
+      <Text style={s.ruleTxt}>{children}</Text>
+    </View>
+  );
+}
+
+function B({ children }: any) {
+  return <Text style={{ fontWeight: '900', color: '#0F172A' }}>{children}</Text>;
+}
+
+function TCell({ children, w, flex, bold, center }: any) {
+  return (
+    <View style={[s.tcell, flex ? { flex: 1 } : { width: w }]}>
+      <Text style={[s.tcellTxt, bold && { fontWeight: '800', color: '#0F172A' }, center && { textAlign: 'center' }]}>
+        {children}
+      </Text>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surface },
-  hero: { paddingHorizontal: 16, paddingBottom: 20, paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 0) : 0 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 6, gap: 8 },
-  iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)' },
-  crownRow: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.28)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
-  crownTxt: { color: '#FCD34D', fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
-  freeChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: '#DCFCE7' },
-  freeChipTxt: { color: '#166534', fontSize: 10, fontWeight: '900' },
-  unlockedChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: '#D1FAE5' },
-  unlockedTxt: { color: '#065F46', fontSize: 10, fontWeight: '900' },
-  lockChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.28)' },
-  lockChipTxt: { color: '#FFF', fontSize: 10, fontWeight: '900' },
-  title: { color: '#FFF', fontSize: 20, fontWeight: '900', marginTop: 14 },
-  sub: { color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 4, fontWeight: '600' },
-  statGrid: { flexDirection: 'row', gap: 8, marginTop: -6 },
-  stat: { flex: 1, backgroundColor: theme.colors.surface, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border },
-  statIcon: { width: 26, height: 26, borderRadius: 8, backgroundColor: theme.colors.brandTertiary, alignItems: 'center', justifyContent: 'center' },
-  statVal: { fontSize: 14, fontWeight: '900', color: theme.colors.onSurface, marginTop: 6 },
-  statLbl: { fontSize: 10, color: theme.colors.muted, marginTop: 2, fontWeight: '700', letterSpacing: 0.3 },
-  card: { backgroundColor: theme.colors.surface, marginTop: 12, padding: 14, borderRadius: 18, borderWidth: 1, borderColor: theme.colors.border },
-  cardTitle: { fontSize: 15, fontWeight: '900', color: theme.colors.onSurface },
-  cardSub: { fontSize: 11.5, color: theme.colors.muted, marginTop: 3, fontWeight: '600' },
-  tblHead: { flexDirection: 'row', marginTop: 10, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
-  tblRow: { flexDirection: 'row', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
-  tCell: { flex: 1, fontSize: 11.5, color: theme.colors.onSurfaceSecondary, fontWeight: '700' },
-  warnBox: { flexDirection: 'row', gap: 6, alignItems: 'flex-start', backgroundColor: '#FEF3C7', padding: 10, borderRadius: 10, marginTop: 12 },
-  warnTxt: { flex: 1, fontSize: 11.5, color: '#7C4A0C', fontWeight: '700', lineHeight: 16 },
-  langRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  langChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: theme.colors.brandTertiary },
-  langChipActive: { backgroundColor: theme.colors.brand },
-  langChipTxt: { fontSize: 12, fontWeight: '800', color: theme.colors.brand },
-  instRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 8 },
-  instDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.brand, marginTop: 6 },
-  instTxt: { flex: 1, fontSize: 12.5, color: theme.colors.onSurfaceSecondary, lineHeight: 18 },
-  agreeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
-  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: theme.colors.brand, alignItems: 'center', justifyContent: 'center' },
-  checkboxOn: { backgroundColor: theme.colors.brand },
-  agreeTxt: { flex: 1, fontSize: 13, color: theme.colors.onSurface, fontWeight: '700' },
-  stickyBar: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12, backgroundColor: theme.colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  startLbl: { fontSize: 10.5, color: theme.colors.muted, fontWeight: '700', letterSpacing: 0.3 },
-  startVal: { fontSize: 18, fontWeight: '900', color: theme.colors.onSurface },
-  startBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: theme.colors.brand, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 },
-  unlockBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#B7791F', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14 },
-  startBtnTxt: { color: '#FFF', fontWeight: '900', fontSize: 13, letterSpacing: 0.4 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF' },
+
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 0) + 6 : 8,
+    paddingBottom: 10,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F7',
+    gap: 8,
+  },
+  iconBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
+  headTxt: { flex: 1, fontSize: 17, fontWeight: '900', color: '#0F172A' },
+
+  testName: { fontSize: 20, fontWeight: '900', color: '#0F172A', marginTop: 16, lineHeight: 27 },
+  divider: { height: 1, backgroundColor: '#E2E8F0', marginTop: 14 },
+
+  pillRow: { flexDirection: 'row', gap: 12, marginTop: 16, marginBottom: 4 },
+  statCol: { flex: 1, alignItems: 'center' },
+  statPill: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    minWidth: 90,
+    alignItems: 'center',
+  },
+  statVal: { fontSize: 15, fontWeight: '800', color: '#0F172A' },
+  statLbl: { fontSize: 12, color: '#64748B', marginTop: 6, fontWeight: '600' },
+
+  heading: { fontSize: 15, fontWeight: '900', color: '#0F172A', marginTop: 16 },
+
+  // Table
+  table: {
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    marginTop: 12,
+  },
+  trow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#CBD5E1' },
+  thead: { backgroundColor: '#F8FAFC' },
+  tcell: { paddingHorizontal: 6, paddingVertical: 10, borderRightWidth: 1, borderRightColor: '#CBD5E1', justifyContent: 'center' },
+  tcellTxt: { fontSize: 12, color: '#334155' },
+
+  // Rules
+  ruleRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  ruleN: { fontSize: 13.5, fontWeight: '800', color: '#0F172A', width: 24 },
+  ruleTxt: { flex: 1, fontSize: 13.5, color: '#334155', lineHeight: 20 },
+
+  // Footer
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#EEF2F7',
+    backgroundColor: '#FFF',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.08, shadowOffset: { width: 0, height: -4 }, shadowRadius: 10 },
+      android: { elevation: 12 },
+    }),
+  },
+  langBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+    backgroundColor: '#FFF',
+  },
+  langTxt: { fontSize: 13, fontWeight: '900', color: '#2563EB' },
+  startBtn: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 10,
+    ...Platform.select({
+      ios: { shadowColor: '#EF4444', shadowOpacity: 0.28, shadowOffset: { width: 0, height: 6 }, shadowRadius: 12 },
+      android: { elevation: 4 },
+    }),
+  },
+  startTxt: { color: '#FFF', fontSize: 15, fontWeight: '900', letterSpacing: 0.4 },
+
+  // Modal
+  mBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
+  mSheet: { backgroundColor: '#FFF', borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 16, paddingTop: 10 },
+  mHandle: { alignSelf: 'center', width: 42, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', marginBottom: 12 },
+  mTitle: { fontSize: 15, fontWeight: '900', color: '#0F172A', marginBottom: 10 },
+  langRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 8 },
+  langRowActive: { borderColor: '#93C5FD', backgroundColor: '#EFF6FF' },
+  langRowTxt: { fontSize: 13.5, fontWeight: '700', color: '#0F172A' },
 });

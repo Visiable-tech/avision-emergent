@@ -71,7 +71,6 @@ export default function TestsList() {
   const [tests, setTests] = useState<any[]>([]);
   const [ent, setEnt] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [starting, setStarting] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   const type = (params.type as string) || undefined;
@@ -147,22 +146,14 @@ export default function TestsList() {
             try {
               const r = await api.tpActivate(user.user_id, 'prime', 365);
               setEnt(r);
-              startTest(t);
+              router.push(`/test-prime/test/${t.id}` as any);
             } catch {}
           },
         },
       ]);
       return;
     }
-    try {
-      setStarting(t.id);
-      const attempt = await api.tpStartAttempt(user.user_id, t.id);
-      router.push(`/test-prime/attempt/${attempt.attempt_id}` as any);
-    } catch (e: any) {
-      Alert.alert('Could not start', e?.message || 'Please try again.');
-    } finally {
-      setStarting(null);
-    }
+    router.push(`/test-prime/test/${t.id}` as any);
   };
 
   const headerColor = (params.color as string) || '#1E3A8A';
@@ -253,7 +244,6 @@ export default function TestsList() {
               <Pressable
                 key={t.id}
                 onPress={() => startTest(t)}
-                disabled={starting === t.id}
                 style={({ pressed }) => [
                   s.card,
                   pressed && s.cardPressed,
@@ -314,9 +304,7 @@ export default function TestsList() {
                       </View>
                     </View>
                     <View style={s.playBtn}>
-                      {starting === t.id ? (
-                        <ActivityIndicator size="small" color="#FFF" />
-                      ) : locked ? (
+                      {locked ? (
                         <Ionicons name="lock-closed" size={16} color="#FFF" />
                       ) : (
                         <Ionicons name="play" size={16} color="#FFF" />

@@ -44,7 +44,6 @@ export default function TestPrimeExamDetail() {
   const [ent, setEnt] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activating, setActivating] = useState(false);
-  const [starting, setStarting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -91,20 +90,12 @@ export default function TestPrimeExamDetail() {
     });
   }, [tests]);
 
-  const startFreeTest = async (t: any) => {
+  const startFreeTest = (t: any) => {
     if (!user?.user_id) {
       Alert.alert('Sign in required', 'Please log in to attempt a test.');
       return;
     }
-    try {
-      setStarting(t.id);
-      const attempt = await api.tpStartAttempt(user.user_id, t.id);
-      router.push(`/test-prime/attempt/${attempt.attempt_id}` as any);
-    } catch (e: any) {
-      Alert.alert('Could not start', e?.message || 'Please try again.');
-    } finally {
-      setStarting(null);
-    }
+    router.push(`/test-prime/test/${t.id}` as any);
   };
 
   const activatePrime = async () => {
@@ -200,15 +191,10 @@ export default function TestPrimeExamDetail() {
                   </Text>
                   <Pressable
                     onPress={() => startFreeTest(t)}
-                    disabled={starting === t.id}
                     style={s.freeStartBtn}
                     testID={`tpex-start-${t.id}`}
                   >
-                    {starting === t.id ? (
-                      <ActivityIndicator size="small" color="#2563EB" />
-                    ) : (
-                      <Text style={s.freeStartTxt}>START TEST</Text>
-                    )}
+                    <Text style={s.freeStartTxt}>START TEST</Text>
                   </Pressable>
                 </View>
               ))}
