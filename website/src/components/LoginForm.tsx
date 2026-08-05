@@ -44,20 +44,18 @@ export default function LoginForm() {
             <p className="text-muted">Sign in to access your courses, tests and progress.</p>
           </div>
           <form onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-2)' }}>EMAIL</span>
+            <label className="auth-label">
+              <span className="auth-label-txt">EMAIL</span>
               <div style={{ position: 'relative' }}>
                 <Mail size={16} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--muted-light)' }} />
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                       style={{ width: '100%', padding: '11px 12px 11px 36px', border: '1px solid var(--divider)', borderRadius: 10, fontSize: 14 }} />
+                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="auth-input with-icon" />
               </div>
             </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-2)' }}>PASSWORD</span>
+            <label className="auth-label">
+              <span className="auth-label-txt">PASSWORD</span>
               <div style={{ position: 'relative' }}>
                 <Lock size={16} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--muted-light)' }} />
-                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                       style={{ width: '100%', padding: '11px 12px 11px 36px', border: '1px solid var(--divider)', borderRadius: 10, fontSize: 14 }} />
+                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="auth-input with-icon" />
               </div>
             </label>
             {err && <div style={{ color: 'var(--error)', fontSize: 13, background: 'rgba(220,38,38,0.08)', padding: 10, borderRadius: 8 }}>{err}</div>}

@@ -45,10 +45,9 @@ export default function RegisterPage() {
             <Field label="Email" type="email" value={f.email} onChange={(v) => setF({ ...f, email: v })} required />
             <Field label="Phone" value={f.phone} onChange={(v) => setF({ ...f, phone: v })} required placeholder="10-digit mobile" />
             <Field label="Password" type="password" value={f.password} onChange={(v) => setF({ ...f, password: v })} required placeholder="Min 8 characters" />
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-2)' }}>EXAM CATEGORY</span>
-              <select value={f.category_id} onChange={(e) => setF({ ...f, category_id: e.target.value })}
-                      style={{ padding: '11px 12px', border: '1px solid var(--divider)', borderRadius: 10, fontSize: 14 }}>
+            <label className="auth-label">
+              <span className="auth-label-txt">EXAM CATEGORY</span>
+              <select value={f.category_id} onChange={(e) => setF({ ...f, category_id: e.target.value })} className="auth-input">
                 <option value="banking">Banking</option>
                 <option value="ssc">SSC</option>
                 <option value="railway">Railway</option>
@@ -73,11 +72,10 @@ export default function RegisterPage() {
 
 function Field({ label, value, onChange, type = 'text', required, placeholder }: any) {
   return (
-    <label style={{ display: 'grid', gap: 6 }}>
-      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-2)' }}>{label.toUpperCase()}</span>
+    <label className="auth-label">
+      <span className="auth-label-txt">{label.toUpperCase()}</span>
       <input type={type} required={required} value={value} placeholder={placeholder}
-             onChange={(e) => onChange(e.target.value)}
-             style={{ padding: '11px 12px', border: '1px solid var(--divider)', borderRadius: 10, fontSize: 14 }} />
+             onChange={(e) => onChange(e.target.value)} className="auth-input" />
     </label>
   );
 }

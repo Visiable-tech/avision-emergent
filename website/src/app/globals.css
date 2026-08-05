@@ -153,6 +153,13 @@ p { margin: 0 0 12px; color: var(--text-2); }
 .info-row { display: flex; gap: 12px; align-items: flex-start; padding: 16px 0; border-bottom: 1px solid var(--divider); }
 .info-icon { width: 40px; height: 40px; border-radius: 10px; background: rgba(11,77,184,0.1); color: var(--brand); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
+/* Auth form inputs (extracted to CSS to avoid SSR/CSR style ordering diffs) */
+.auth-input { width: 100%; padding: 11px 12px; border: 1px solid var(--divider); border-radius: 10px; font-size: 14px; font-family: inherit; background: #FFF; }
+.auth-input.with-icon { padding-left: 36px; }
+.auth-input:focus { outline: 2px solid var(--brand); outline-offset: -1px; border-color: var(--brand); }
+.auth-label { display: grid; gap: 6px; }
+.auth-label-txt { font-size: 12px; font-weight: 800; color: var(--text-2); }
+
 /* Testimonial card */
 .t-card { padding: 24px; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 16px; }
 .t-avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }

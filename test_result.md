@@ -327,6 +327,57 @@ agent_communication:
     message: |
       [AVISION ONE — Phase 2 Website Iteration 1 shipped]
 
+  - agent: "main"
+    message: |
+      [AVISION ONE — Phase 2 Iteration 2: Student Web Portal shipped]
+
+      Added the complete student web portal on top of the existing Next.js
+      site — login, register, dashboard, library, course detail with
+      curriculum, video player with server-synced progress, tests placeholder,
+      profile page.
+
+      Key security decisions:
+        • HTTP-only cookie (avn_session, SameSite=Lax, 30-day) — JWT never
+          reaches client JS. Verified via test agent (document.cookie empty,
+          no JWT leak in HTML).
+        • middleware.ts protects /portal/* → 307 redirect to /login?next=…
+        • Next.js route handlers (/api/session/login,register,logout,progress)
+          proxy backend calls with server-side JWT attachment.
+        • Client-side video progress uses /api/session/progress proxy so the
+          bearer token never leaves the server.
+
+      Backend integration (zero backend code changes):
+        POST /api/auth/{login,register} · GET /api/auth/me
+        GET /api/entitlements/mine · GET /api/video-courses/*
+        GET /api/video-courses/*/{lecture,progress,analytics}
+        POST /api/video-courses/*/progress (via server proxy)
+
+      Also fixed 1 non-blocking issue found by test agent: extracted login/
+      register input inline styles into an `.auth-input` CSS class to avoid
+      SSR/CSR hydration warnings.
+
+      Testing:
+        • /app/website/tests/test_portal_flow.py — 24/24 PASS
+        • Backend regression: 309 tests total (219 baseline + 47 CMS +
+          14 golden path + 29 iter-1) all green
+        • Production build (`yarn build`) — 30 routes, 102 kB shared JS,
+          middleware 34.2 kB
+
+      Docs: /app/memory/AVISION_ONE_PHASE2_ITERATION2.md
+
+frontend:
+  - task: "Student Web Portal on Next.js (auth cookie + video player)"
+    implemented: true
+    working: true
+    file: "/app/website/src/{lib/session.ts,lib/apiAuth.ts,middleware.ts,app/portal/*,app/api/session/*,components/{LoginForm,VideoPlayer,Header}.tsx}"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full student portal: /login /register /portal /portal/library /portal/courses/[id] /portal/watch/[cid]/[lid] /portal/tests /portal/profile. HTTP-only cookie for JWT (avn_session), middleware guards /portal/*, server-side proxies for login/register/logout/progress. Video player with 15s progress sync, next/prev navigation, curriculum sidebar. 24/24 portal tests pass; no JWT leakage to client bundle."
+
       Bootstrapped the new avision.co.in public website at /app/website/ as a
       standalone Next.js 15 (App Router) project consuming the AVISION ONE
       common backend directly. This is a NEW project running on port 3001
