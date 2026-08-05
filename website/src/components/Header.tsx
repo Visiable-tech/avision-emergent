@@ -1,7 +1,9 @@
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, User } from 'lucide-react';
+import { fetchMe } from '@/lib/apiAuth';
 
-export default function Header() {
+export default async function Header() {
+  const me = await fetchMe().catch(() => null);
   return (
     <div className="nav-wrap">
       <div className="container nav">
@@ -19,8 +21,16 @@ export default function Header() {
           <Link href="/franchise">Franchise</Link>
         </nav>
         <div className="nav-cta">
-          <Link href="/contact" className="btn btn-secondary">Contact</Link>
-          <a href="/" className="btn btn-primary">Download App <ArrowRight size={14} /></a>
+          {me ? (
+            <Link href="/portal" className="btn btn-primary">
+              <User size={14} /> My Learning
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" className="btn btn-secondary">Sign in</Link>
+              <Link href="/register" className="btn btn-primary">Get started <ArrowRight size={14} /></Link>
+            </>
+          )}
         </div>
       </div>
     </div>
