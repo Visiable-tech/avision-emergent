@@ -1,0 +1,34 @@
+{
+  "summary": "Phase-2 Iteration-3 (web test-attempt flow @ :3001) verified end-to-end. 18/18 pytest cases green (entitlement seeding, all 5 server-proxy endpoints under cookie auth, 401 when unauthed, full attempt lifecycle start→state→violation→submit, all 4 portal SSR pages, backend spot-check, 4 regression checks). Playwright UI script also passed: login → /portal/tests (100 tests, 'Prime active' badge) → preview → Start Attempt → attempt runner (timer counted 01:00:00 → 59:58 in 2.2s ✓, radio option selectable ✓, Save&Next works ✓) → submit confirm modal → /result page with score 1/100, percentage 1%, rank #153926, percentile 0.05%, Correct=1 / Wrong=0 / Unattempted=99, Accuracy 100%, answer-review list. JWT never leaks: server-side proxies attach Authorization only to the outbound backend call and the client-visible response body was regex-scanned for JWT-shaped strings across every proxy endpoint and every portal HTML page — zero leaks found. NOTE (env-only): Next.js dev server crashed with 'Cannot find module ./1331.js' when 2 pytest-xdist workers hit /api/session/login concurrently on a warm .next cache. Fix: `rm -rf /app/website/.next && supervisorctl restart website`. This is a Next.js dev-bundler race, not a code bug — production build is unaffected. Backend Test Prime engine is unchanged and both spot-checks (list & attempts/start) pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_website_attempt_proxy.py",
+    "/app/test_reports/pytest/pytest_iter16_website_attempt.xml"
+  ],
+  "action_items": [
+    "None functionally — feature is production-ready. Optional hardening: add a warmup route or `next build` step in supervisor to avoid the dev-server chunk race when multiple clients hit fresh routes simultaneously (only affects `next dev`, not production).",
+    "Consider echoing the granted `product_id` back from POST /api/admin/enroll so seed scripts can idempotently re-verify without a second GET (nice-to-have, not required)."
+  ],
+  "critical_code_review_comments": [
+    "attemptProxy.ts: JWT is correctly kept server-side; every proxy re-fetches /auth/me to derive user_id from the token — that's an extra hop per request. Cache the uid alongside the cookie or embed the uid in a signed sibling cookie to avoid N+1 backend calls on every state PATCH (auto-save every 20s).",
+    "AttemptRunner.tsx line ~68: `stateRef` sync effect depends on every state change; the every-20s persist interval is not restarted when attempt_id changes (uses stateRef closure). Fine here because attempt_id is constant for the mounted component, but flag if the component is ever re-used.",
+    "tests/[tid]/page.tsx line 12–15: fetchMe() is invoked twice in the same Promise.all (once directly, once inside the ent template literal). Minor perf hit — cache the first call.",
+    "portal/attempt/[id]/page.tsx: fetches /auth/me then /attempts/{id} sequentially in an SSR path — same double round-trip pattern as above; consider passing user_id via cookie payload.",
+    "AttemptRunner uses `alert('Submit failed…')` — should use the same toast/violation banner pattern for consistency."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (18/18 pytest cases)", "frontend": "100% (all playwright steps passed; UI verified visually)"},
+  "seed_data_creation": "Ensured `tp-plan-12m` entitlement is granted to test@avision.com (idempotent — skipped when already Prime).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run pytest with `-o addopts=''` (or `-p no:xdist`) to avoid a Next.js dev-bundler chunk race when :3001 handlers are compiled by multiple workers in parallel. If you see `Cannot find module './XXXX.js'` in .next/server, `rm -rf /app/website/.next && sudo supervisorctl restart website` clears it. Test file: /app/backend/tests/test_website_attempt_proxy.py."
+}

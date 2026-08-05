@@ -182,6 +182,24 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../src/app/portal/attempt/[id]/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/portal/attempt/[id]">> = Specific
+  const handler = {} as typeof import("../../src/app/portal/attempt/[id]/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/portal/attempt/[id]/result/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/portal/attempt/[id]/result">> = Specific
+  const handler = {} as typeof import("../../src/app/portal/attempt/[id]/result/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/portal/courses/[id]/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/portal/courses/[id]">> = Specific
@@ -213,6 +231,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends AppPageConfig<"/portal/profile">> = Specific
   const handler = {} as typeof import("../../src/app/portal/profile/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/portal/tests/[tid]/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/portal/tests/[tid]">> = Specific
+  const handler = {} as typeof import("../../src/app/portal/tests/[tid]/page.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
@@ -258,6 +285,51 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends AppPageConfig<"/testimonials">> = Specific
   const handler = {} as typeof import("../../src/app/testimonials/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/session/attempt/[id]/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/session/attempt/[id]">> = Specific
+  const handler = {} as typeof import("../../src/app/api/session/attempt/[id]/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/session/attempt/[id]/state/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/session/attempt/[id]/state">> = Specific
+  const handler = {} as typeof import("../../src/app/api/session/attempt/[id]/state/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/session/attempt/[id]/submit/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/session/attempt/[id]/submit">> = Specific
+  const handler = {} as typeof import("../../src/app/api/session/attempt/[id]/submit/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/session/attempt/[id]/violation/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/session/attempt/[id]/violation">> = Specific
+  const handler = {} as typeof import("../../src/app/api/session/attempt/[id]/violation/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/session/attempt/start/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/session/attempt/start">> = Specific
+  const handler = {} as typeof import("../../src/app/api/session/attempt/start/route.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
