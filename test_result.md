@@ -312,6 +312,75 @@ agent_communication:
           to every child ref_id (course/test/live). Cascade proven end-to-end.
         • Product visibility split (app / website / admin_only) + full SEO fields
           (slug, title, desc, keywords).
+        • Golden Path acceptance test: 14/14 PASS.
+        • Full backend regression: 219/219 tests PASS.
+        • /app/memory/AVISION_ONE_PHASE1_ACCEPTANCE.md generated.
+
+      Phase 12 — Super Admin CMS Suite (36 modules delivered):
+        • Backend `avision_cms.py` — generic CRUD engine over 20 CMS entities
+          + 11 real-data Reports.
+        • Frontend `EntityScreen.tsx` + declarative `entitySpecs.tsx` — 20
+          admin routes, each ~2 lines. Reports dashboard.
+        • Backend CMS test suite: 47/47 PASS.
+
+  - agent: "main"
+    message: |
+      [AVISION ONE — Phase 2 Website Iteration 1 shipped]
+
+      Bootstrapped the new avision.co.in public website at /app/website/ as a
+      standalone Next.js 15 (App Router) project consuming the AVISION ONE
+      common backend directly. This is a NEW project running on port 3001
+      via a new supervisor program (parallel to Expo:3000 + FastAPI:8001).
+
+      Delivered pages (20 routes, marketing + SEO scope B1):
+        • Home — hero from CMS banners_home, stats strip, 4-feature grid,
+          featured video courses, live batches, results, testimonials,
+          current affairs, FAQs, CTA
+        • Exams: /exams list + /exams/[slug] detail
+        • Courses: /courses list + /courses/[id] detail (SEO from product.seo)
+        • Live courses: /live-courses list + /live-courses/[id] detail
+        • Current affairs: list + article
+        • Testimonials, Results, FAQs, Centres, Franchise, Contact
+        • /[slug] fallback for dynamic CMS web pages (cms_web_pages)
+        • sitemap.ts (auto-aggregates products + articles + pages)
+        • robots.ts + not-found.tsx
+
+      Backend integration:
+        • lib/api.ts — typed AVISION ONE client (cmsList/cmsGet/listProducts)
+        • Every fetch passes client=website (backend applies website visibility)
+        • HeartbeatBeacon.tsx — POST /api/heartbeat on load
+        • System Status → website flipped from "not_connected" → "connected"
+        • Production build succeeds: 20 routes, 102KB shared JS
+
+      Kubernetes note: the port 3001 dev server is not reachable via preview
+      URL (only :3000 and /api/*→:8001 are routed). Fully functional inside
+      the pod; production launch requires deploying to Vercel or an NGINX
+      reverse-proxy setup.
+
+      Docs generated:
+        • /app/memory/AVISION_ONE_PHASE2_ITERATION1.md (this handoff)
+
+frontend:
+  - task: "Phase 2 — public website /app/website/ (Next.js 15)"
+    implemented: true
+    working: true
+    file: "/app/website/*"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Standalone Next.js 15 project on port 3001 with 20 routes consuming the AVISION ONE common backend. Home, exams, courses, live-courses, current-affairs, testimonials, results, FAQs, centres, franchise, contact + dynamic CMS pages + sitemap + robots. SSR + ISR + SEO per page. Heartbeat flips System Status → connected. Production build verified."
+
+      Phase 1 Final Acceptance:
+        • Legacy modules (live_courses.py, video_courses.py, test_prime.py)
+          refactored to write unified entitlements on every purchase and read
+          them as a fallback for legacy access checks (backward compatible).
+        • Bundle Product support added — one Product with items[] grants entitlements
+          to every child ref_id (course/test/live). Cascade proven end-to-end.
+        • Product visibility split (app / website / admin_only) + full SEO fields
+          (slug, title, desc, keywords).
         • Golden Path acceptance test: 14/14 PASS
           (admin auth → student → course → bundle → enroll → mine → LC dash →
            TP prime → visibility split → payment security → audit trail →

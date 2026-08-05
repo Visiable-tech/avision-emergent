@@ -1,0 +1,47 @@
+{
+  "summary": "AVISION ONE Website (Next.js 15 on :3001) iter-1 smoke + integration tests. 28/29 pytest assertions PASS. All 17 routes return expected HTTP codes (16 x 200 + intentional 404). Home page renders live CMS data: hero title = banners_home[0].title ('Banking Complete Pack'), 6 featured video courses, 4 live batches with 'Live' badges, testimonials show seeded students Riya Sen & Aditya Kumar. Course detail SEO on /courses/vc-ibps-po-2026 correctly wires product.seo.title into <title> and product.seo.desc into <meta name=description>. /about pulls content from cms_web_pages seed. Contact form has name/email/phone/message fields and mailto:support@avision.co.in action. Heartbeat integration verified: POST /api/heartbeat with client=website works, and admin GET /api/admin/system/status returns frontend.website.status == 'connected'. ONE bug: /sitemap.xml is missing all product-detail URLs (/courses/<id>, /live-courses/<id>). Root cause: sitemap.ts calls listProducts({limit:500}) but the backend enforces limit<=200 (Pydantic 422), which is silently swallowed by the catch{} block. Operational note: during initial parallel curl burst, Next.js dev server produced 'Cannot find module ./124.js' webpack-chunk cache corruption for every route — resolved by rm -rf /app/website/.next && supervisorctl restart website. Not a production issue (only affects dev server under load), but the dev cache is fragile.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "SEO / sitemap.xml",
+        "issue": "Sitemap is missing every /courses/<id> and /live-courses/<id> URL. Root cause: /app/website/src/app/sitemap.ts:24 calls listProducts({type:'video_course', limit:500}) and same for live_course. Backend GET /api/products enforces limit<=200 (Pydantic 422). The listProducts helper then throws, and the surrounding try/catch{} in sitemap.ts swallows the error silently, so no product URLs are appended. Fix: reduce limit to <=200 or paginate. Verified backend returns {\"detail\":[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"limit\"],\"ctx\":{\"le\":200}}]} for limit=500.",
+        "affected_testIDs": []
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_website_iter1_smoke.py",
+    "/app/test_reports/pytest/pytest_website_iter1.xml"
+  ],
+  "action_items": [
+    "Fix /app/website/src/app/sitemap.ts: change limit:500 → limit:200 (or add pagination) in the two listProducts calls, so /courses/<id> and /live-courses/<id> URLs appear in /sitemap.xml.",
+    "Consider surfacing errors from the catch{} blocks in sitemap.ts (at least console.error) so silent failures like this are caught during development.",
+    "Ingress note: :3001 is not exposed via preview URL. If a public smoke-test is required, either add ingress for /website or NGINX reverse-proxy /api → 8001, everything else → 3001 on the same origin (already noted in AVISION_ONE_PHASE2_ITERATION1.md §6).",
+    "Optional: pre-build the site (`yarn build && yarn start`) in supervisor once iteration stabilises — dev server webpack cache proved fragile under concurrent load in this pod."
+  ],
+  "critical_code_review_comments": [
+    "sitemap.ts uses `catch {}` (empty) on all three try blocks — hides real failures. Should log at minimum.",
+    "src/lib/api.ts `listProducts` allows any `limit` value from callers; consider clamping to backend max (200) inside the helper to prevent this class of bug.",
+    "HeartbeatBeacon fires from client-side only (see components/HeartbeatBeacon.tsx). Server-side page renders don't post a heartbeat. Currently OK because backend/tests still see heartbeat via any SSR-side fetch chain? — verified working: the client-side beacon fires on / and flips System Status to connected. Just noting: if headless SEO crawlers ever hit the site without executing JS, they won't heartbeat. Fine for iter-1."
+  ],
+  "updated_files": [
+    "/app/website/.next (cleared) + supervisorctl restart website — recovered dev server from webpack chunk cache corruption caused by concurrent request burst.",
+    "/app/backend/tests/test_website_iter1_smoke.py (new — 29 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (heartbeat + system-status spot checks pass)",
+    "frontend": "96.5% (28/29 assertions; only sitemap product-URL inclusion fails)"
+  },
+  "seed_data_creation": "None. Used existing seeded CMS entities and products.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Website is at /app/website/, Next.js dev on :3001 via supervisor 'website'. Tests: /app/backend/tests/test_website_iter1_smoke.py (pytest). Dev server webpack cache is fragile under bursts — if all routes 500 with 'Cannot find module ./NNN.js', do `rm -rf /app/website/.next && sudo supervisorctl restart website && sleep 8`. Admin login: test@avision.com / Test@123. Product IDs used: vc-ibps-po-2026, lc-banking-po-2026.",
+  "rca_of_issue": "Bug: /sitemap.xml missing product URLs. Reproduction: curl -s http://localhost:3001/sitemap.xml | grep -c 'courses/vc-' → 0. RCA: /app/website/src/app/sitemap.ts lines 23-28 → listProducts({limit:500}) → /app/website/src/lib/api.ts apiGet builds ?limit=500 → backend /api/products validates limit<=200 → 422 error → apiGet throws → outer try/catch{} in sitemap.ts silently swallows → no product URLs appended. Verified with: `curl -s 'http://localhost:8001/api/products?type=video_course&client=website&limit=500'` returns the 422 detail; with limit=100 returns 10 products correctly. Mitigation: change limit:500 → limit:200 in sitemap.ts (both listProducts calls) OR paginate; also improve catch to log so this class of failure is visible."
+}

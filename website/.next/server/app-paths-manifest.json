@@ -1,0 +1,18 @@
+{
+  "/sitemap.xml/route": "app/sitemap.xml/route.js",
+  "/robots.txt/route": "app/robots.txt/route.js",
+  "/page": "app/page.js",
+  "/exams/page": "app/exams/page.js",
+  "/courses/page": "app/courses/page.js",
+  "/live-courses/page": "app/live-courses/page.js",
+  "/current-affairs/page": "app/current-affairs/page.js",
+  "/testimonials/page": "app/testimonials/page.js",
+  "/results/page": "app/results/page.js",
+  "/faqs/page": "app/faqs/page.js",
+  "/centres/page": "app/centres/page.js",
+  "/franchise/page": "app/franchise/page.js",
+  "/contact/page": "app/contact/page.js",
+  "/[slug]/page": "app/[slug]/page.js",
+  "/courses/[id]/page": "app/courses/[id]/page.js",
+  "/live-courses/[id]/page": "app/live-courses/[id]/page.js"
+}
