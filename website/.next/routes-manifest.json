@@ -1,1 +1,275 @@
-{"version":3,"caseSensitive":false,"basePath":"","rewrites":{"beforeFiles":[],"afterFiles":[],"fallback":[]},"redirects":[{"source":"/:path+/","destination":"/:path+","permanent":true,"internal":true,"regex":"^(?:\\/((?:[^\\/]+?)(?:\\/(?:[^\\/]+?))*))\\/$"}],"headers":[]}
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/api/session/attempt/[id]",
+      "regex": "^/api/session/attempt/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/session/attempt/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/session/attempt/[id]/state",
+      "regex": "^/api/session/attempt/([^/]+?)/state(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/session/attempt/(?<nxtPid>[^/]+?)/state(?:/)?$"
+    },
+    {
+      "page": "/api/session/attempt/[id]/submit",
+      "regex": "^/api/session/attempt/([^/]+?)/submit(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/session/attempt/(?<nxtPid>[^/]+?)/submit(?:/)?$"
+    },
+    {
+      "page": "/api/session/attempt/[id]/violation",
+      "regex": "^/api/session/attempt/([^/]+?)/violation(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/session/attempt/(?<nxtPid>[^/]+?)/violation(?:/)?$"
+    },
+    {
+      "page": "/courses/[id]",
+      "regex": "^/courses/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/courses/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/current-affairs/[slug]",
+      "regex": "^/current\\-affairs/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/current\\-affairs/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/exams/[slug]",
+      "regex": "^/exams/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/exams/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/live-courses/[id]",
+      "regex": "^/live\\-courses/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/live\\-courses/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/portal/attempt/[id]",
+      "regex": "^/portal/attempt/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/portal/attempt/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/portal/attempt/[id]/result",
+      "regex": "^/portal/attempt/([^/]+?)/result(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/portal/attempt/(?<nxtPid>[^/]+?)/result(?:/)?$"
+    },
+    {
+      "page": "/portal/courses/[id]",
+      "regex": "^/portal/courses/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/portal/courses/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/portal/tests/[tid]",
+      "regex": "^/portal/tests/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPtid": "nxtPtid"
+      },
+      "namedRegex": "^/portal/tests/(?<nxtPtid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/portal/watch/[cid]/[lid]",
+      "regex": "^/portal/watch/([^/]+?)/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPcid": "nxtPcid",
+        "nxtPlid": "nxtPlid"
+      },
+      "namedRegex": "^/portal/watch/(?<nxtPcid>[^/]+?)/(?<nxtPlid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/[slug]",
+      "regex": "^/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/(?<nxtPslug>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/centres",
+      "regex": "^/centres(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/centres(?:/)?$"
+    },
+    {
+      "page": "/contact",
+      "regex": "^/contact(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/contact(?:/)?$"
+    },
+    {
+      "page": "/courses",
+      "regex": "^/courses(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/courses(?:/)?$"
+    },
+    {
+      "page": "/current-affairs",
+      "regex": "^/current\\-affairs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/current\\-affairs(?:/)?$"
+    },
+    {
+      "page": "/exams",
+      "regex": "^/exams(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/exams(?:/)?$"
+    },
+    {
+      "page": "/faqs",
+      "regex": "^/faqs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/faqs(?:/)?$"
+    },
+    {
+      "page": "/franchise",
+      "regex": "^/franchise(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/franchise(?:/)?$"
+    },
+    {
+      "page": "/live-courses",
+      "regex": "^/live\\-courses(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/live\\-courses(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/portal",
+      "regex": "^/portal(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal(?:/)?$"
+    },
+    {
+      "page": "/portal/library",
+      "regex": "^/portal/library(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/library(?:/)?$"
+    },
+    {
+      "page": "/portal/profile",
+      "regex": "^/portal/profile(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/profile(?:/)?$"
+    },
+    {
+      "page": "/portal/tests",
+      "regex": "^/portal/tests(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/tests(?:/)?$"
+    },
+    {
+      "page": "/register",
+      "regex": "^/register(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/register(?:/)?$"
+    },
+    {
+      "page": "/results",
+      "regex": "^/results(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/results(?:/)?$"
+    },
+    {
+      "page": "/robots.txt",
+      "regex": "^/robots\\.txt(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/robots\\.txt(?:/)?$"
+    },
+    {
+      "page": "/sitemap.xml",
+      "regex": "^/sitemap\\.xml(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/sitemap\\.xml(?:/)?$"
+    },
+    {
+      "page": "/testimonials",
+      "regex": "^/testimonials(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/testimonials(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}
