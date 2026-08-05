@@ -1,15 +1,3 @@
 {
-  "/api/session/login/route": "app/api/session/login/route.js",
-  "/api/session/attempt/start/route": "app/api/session/attempt/start/route.js",
-  "/api/session/attempt/[id]/route": "app/api/session/attempt/[id]/route.js",
-  "/api/session/attempt/[id]/state/route": "app/api/session/attempt/[id]/state/route.js",
-  "/api/session/attempt/[id]/violation/route": "app/api/session/attempt/[id]/violation/route.js",
-  "/api/session/attempt/[id]/submit/route": "app/api/session/attempt/[id]/submit/route.js",
-  "/login/page": "app/login/page.js",
-  "/page": "app/page.js",
-  "/portal/tests/page": "app/portal/tests/page.js",
-  "/portal/tests/[tid]/page": "app/portal/tests/[tid]/page.js",
-  "/portal/attempt/[id]/result/page": "app/portal/attempt/[id]/result/page.js",
-  "/portal/attempt/[id]/page": "app/portal/attempt/[id]/page.js",
-  "/portal/page": "app/portal/page.js"
+  "/portal/attempt/[id]/page": "app/portal/attempt/[id]/page.js"
 }

@@ -9,10 +9,10 @@ export const metadata: Metadata = { title: 'Test preview' };
 
 export default async function TestPreview({ params }: { params: Promise<{ tid: string }> }) {
   const { tid } = await params;
-  const [me, tests, ent] = await Promise.all([
-    fetchMe(),
+  const me = await fetchMe();
+  const [tests, ent] = await Promise.all([
     authedGet<any>('/test-prime/tests?limit=200'),
-    authedGet<any>(`/test-prime/entitlement?user_id=${(await fetchMe())?.user_id || ''}`).catch(() => null),
+    authedGet<any>(`/test-prime/entitlement?user_id=${me?.user_id || ''}`).catch(() => null),
   ]);
   const list = tests?.tests || tests?.items || [];
   const t = list.find((x: any) => x.id === tid);

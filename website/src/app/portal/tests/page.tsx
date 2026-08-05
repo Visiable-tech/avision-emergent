@@ -9,9 +9,9 @@ export const dynamic = 'force-dynamic';
 
 export default async function TestsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q } = await searchParams;
-  const [me, ent, tests] = await Promise.all([
-    fetchMe(),
-    authedGet<any>(`/test-prime/entitlement?user_id=${(await fetchMe())?.user_id || ''}`).catch(() => null),
+  const me = await fetchMe();
+  const [ent, tests] = await Promise.all([
+    authedGet<any>(`/test-prime/entitlement?user_id=${me?.user_id || ''}`).catch(() => null),
     authedGet<any>(`/test-prime/tests?limit=100${q ? `&q=${encodeURIComponent(q)}` : ''}`).catch(() => null),
   ]);
   const isPrime = !!ent?.is_prime;

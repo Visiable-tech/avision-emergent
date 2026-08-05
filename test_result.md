@@ -331,6 +331,60 @@ agent_communication:
     message: |
       [AVISION ONE — Phase 2 Iteration 2: Student Web Portal shipped]
 
+  - agent: "main"
+    message: |
+      [AVISION ONE — Phase 2 Iteration 3: Test-Attempts Web Flow shipped]
+
+      Added a full web-native test-attempt experience on the Next.js portal
+      that layers on top of the existing Test Prime backend engine. Zero
+      backend code changes.
+
+      New server-side proxies (each reads avn_session cookie, resolves
+      user_id via /auth/me, forwards with Authorization: Bearer):
+        POST   /api/session/attempt/start
+        GET    /api/session/attempt/[id]
+        PATCH  /api/session/attempt/[id]/state
+        POST   /api/session/attempt/[id]/submit
+        POST   /api/session/attempt/[id]/violation
+
+      New UI pages:
+        • /portal/tests — 100-test grid with Prime badge
+        • /portal/tests/[tid] — preview + instructions + Start Attempt
+        • /portal/attempt/[id] — full attempt runner:
+            - Sticky timer (auto-submits at 0, red under 5 min)
+            - Question card w/ section/topic/difficulty chips + marks header
+            - 5-col Q palette color-coded (Answered/NotAns/Marked/Marked+Ans/NotVisited)
+            - Legend + live counts
+            - Prev / Mark / Clear response / Save & Next
+            - Auto-save every 20s + beforeunload (refresh-safe)
+            - Anti-cheat: tab-switch + window-blur → /violation
+            - Submit confirm modal
+        • /portal/attempt/[id]/result — brand-gradient KPI hero,
+            Correct/Wrong/Unattempted metric cards, Accuracy bar,
+            Section-wise + Difficulty split, Answer review with explanations
+
+      Testing:
+        • /app/backend/tests/test_website_attempt_proxy.py — 18/18 PASS
+        • Playwright e2e verified full lifecycle (login → attempt → submit → result)
+        • JWT-leak regex scanner: 0 leaks across all proxy JSON + all portal HTML
+        • Backend regression: 309 tests all green
+        • Production build clean
+
+      Docs: /app/memory/AVISION_ONE_PHASE2_ITERATION3.md
+
+frontend:
+  - task: "Test-attempts web flow (attempt runner + result analytics)"
+    implemented: true
+    working: true
+    file: "/app/website/src/{lib/attemptProxy.ts,app/api/session/attempt/**,app/portal/{tests/**,attempt/**},components/{AttemptRunner,StartAttemptButton}.tsx}"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full web-native Test Prime attempt experience: browse → preview → start → answer → mark → auto-save → submit → analytics. Refresh-safe (20s auto-persist). Anti-cheat (tab-switch/blur violation logging). Server-side proxy protects JWT (cookie never exposed to client). 18/18 tests pass, e2e verified via Playwright, 0 JWT leaks."
+
       Added the complete student web portal on top of the existing Next.js
       site — login, register, dashboard, library, course detail with
       curriculum, video player with server-synced progress, tests placeholder,
