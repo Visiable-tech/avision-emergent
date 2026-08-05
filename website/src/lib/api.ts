@@ -35,7 +35,9 @@ async function apiPost<T = any>(path: string, body: any): Promise<T> {
 export async function cmsList<T = any>(entity: string, opts: { q?: string; limit?: number; skip?: number; client?: string } = {}): Promise<{ items: T[]; total: number }> {
   const p = new URLSearchParams();
   if (opts.q) p.set('q', opts.q);
-  p.set('limit', String(opts.limit ?? 50));
+  // Backend enforces limit<=200 (Pydantic Query(le=200)). Clamp here so a
+  // typo doesn't silently break server-side rendering.
+  p.set('limit', String(Math.min(opts.limit ?? 50, 200)));
   p.set('skip', String(opts.skip ?? 0));
   p.set('client', opts.client || 'website');
   return apiGet(`/cms/${entity}?${p.toString()}`);
@@ -76,7 +78,8 @@ export async function listProducts(opts: { type?: string; category?: string; q?:
   if (opts.category) p.set('category', opts.category);
   if (opts.q) p.set('q', opts.q);
   p.set('client', 'website');
-  p.set('limit', String(opts.limit ?? 100));
+  // Backend max is 200 — clamp to prevent silent 422s during SSR.
+  p.set('limit', String(Math.min(opts.limit ?? 100, 200)));
   return apiGet<{ products: Product[]; total: number }>(`/products?${p.toString()}`);
 }
 

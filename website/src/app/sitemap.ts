@@ -21,26 +21,32 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   try {
     const [{ products: vc }, { products: lc }] = await Promise.all([
-      listProducts({ type: 'video_course', limit: 500 }),
-      listProducts({ type: 'live_course', limit: 500 }),
+      listProducts({ type: 'video_course', limit: 200 }),
+      listProducts({ type: 'live_course', limit: 200 }),
     ]);
     vc.forEach((p) => base.push({ url: `${SITE}/courses/${p.id}`, changeFrequency: 'weekly', priority: 0.8 }));
     lc.forEach((p) => base.push({ url: `${SITE}/live-courses/${p.id}`, changeFrequency: 'weekly', priority: 0.8 }));
-  } catch {}
+  } catch (e) {
+    console.error('sitemap: products fetch failed', e);
+  }
 
   try {
-    const { items } = await cmsList<Article>('current_affairs', { limit: 500 });
+    const { items } = await cmsList<Article>('current_affairs', { limit: 200 });
     items.forEach((a) => base.push({ url: `${SITE}/current-affairs/${a.slug || a.id}`, changeFrequency: 'daily', priority: 0.7 }));
-  } catch {}
+  } catch (e) {
+    console.error('sitemap: current_affairs fetch failed', e);
+  }
 
   try {
-    const { items } = await cmsList<WebPage>('cms_web_pages', { limit: 500 });
+    const { items } = await cmsList<WebPage>('cms_web_pages', { limit: 200 });
     items.forEach((p) => {
       if (p.published !== false && p.slug !== 'home') {
         base.push({ url: `${SITE}/${p.slug}`, changeFrequency: 'weekly', priority: 0.6 });
       }
     });
-  } catch {}
+  } catch (e) {
+    console.error('sitemap: web_pages fetch failed', e);
+  }
 
   return base;
 }
