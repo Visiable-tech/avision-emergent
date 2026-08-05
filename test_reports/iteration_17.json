@@ -1,0 +1,42 @@
+{
+  "summary": "Backend-only regression for Test Prime multi-question-type support (MSQ / TITA / passage-MCQ) + bilingual EN/HI fields. All 7 checks from the review request pass. 12/12 pytest cases green against the live preview backend at https://avision-study-dash.preview.emergentagent.com/api/test-prime.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_test_prime_msq_tita_passage.py",
+    "/app/test_reports/pytest/pytest_iter17_test_prime.xml"
+  ],
+  "checks": {
+    "1_activate_prime": "PASS — POST /entitlement/activate?user_id=qa_msq_1 with {plan:'prime', duration_days:30} → 200 OK, is_prime=true, plan='Test Prime', expires_at set.",
+    "2_clat_start_schema": "PASS — POST /attempts/start for CLAT (t_clat_full-mock_2) returns 120-question paper. Every q has q_type ∈ {mcq,msq,tita,passage-mcq}; ≥3 questions are passage-mcq with non-empty passage; text_hi + options_hi present & non-empty on every q; 'correct' and 'explanation' stripped from every returned q; sections / sectional_timing / total_duration_sec / negative_marking present at top level.",
+    "3_ipmat_tita_in_sa": "PASS — IPMAT Indore (t_ipmat-indore_full-mock_2). 15/15 questions in 'Quantitative Aptitude (SA)' section are q_type='tita' with empty options[] and populated text_hi.",
+    "4_patch_state_mixed": "PASS — PATCH /attempts/{aid}/state with mixed answers (int / list[int] / str) + section_times + active_section returns 200. Answers persisted exactly (types preserved). active_section marked started=true and time_left_sec updated.",
+    "5_submit_scoring_and_shape": "PASS — POST /submit returns 200. review[] has per-q q_type/user/correct/status; sectional[] entries carry score/correct/wrong/accuracy; difficulty_wise has Easy+Medium+Hard; topic_wise present. TITA wrong answers score 0.0 (no negative applied) despite CLAT neg=0.25 — verified additionally against IPMAT SA (neg=1.0) where all 15 TITA wrongs → marks_earned=0.0.",
+    "6_analytics": "PASS — GET /attempts/{aid}/analytics returns the submitted doc with review/sectional/difficulty_wise/topic_wise/score/percentile.",
+    "7_backward_compat_sbi_po": "PASS — SBI PO (plain MCQ pattern) starts, majority MCQ q_type, bilingual fields still populated, submit with integer answers → 200 with full analytics."
+  },
+  "action_items": [],
+  "critical_code_review_comments": [
+    "test_prime.py is 1677 lines — consider splitting the CBT engine (start/patch/submit/analytics + question generators) into a submodule (e.g. test_prime_engine.py) to keep files <700 lines per repo convention.",
+    "In _passage_question(), when the caller asks for `correct` index other than 1, the code swaps opts[1] and opts[correct] — but if correct==0 this still leaves index 1 as the original balanced answer. The current logic works because option-content and correct-index are decoupled at scoring time, but the swap comment claims to 'place the correct option at `correct`' which is misleading. Consider clarifying or removing the swap altogether since the correct index is stored explicitly.",
+    "start_attempt() persists the full questions[] (with 'correct' + 'explanation') server-side and returns _public_attempt(doc) which strips them via _strip_q — good. But get_attempt() and save_state() both round-trip through _public_attempt so the same stripping happens. Confirmed no leakage in tests.",
+    "_translate_stub returns '[हिं] <english>' — this is a stub that satisfies 'non-null string' requirement but is not a real translation. Fine for infra tests, but flag as MOCK for the Vercel manual QA — Hindi users will see the English text with a Hindi prefix marker."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_test_prime_msq_tita_passage.py (new — regression suite)"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "not tested (per request — Next.js web player QA on Vercel)"},
+  "seed_data_creation": "Ephemeral: 3 Test Prime entitlements (qa_msq_1, qa_tita_1/qa_tita_neg, qa_bc_sbi) and 4 attempt docs in tp_attempts. Prefixed with 'qa_' — safe to leave or purge.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Regression suite for Test Prime new q_types lives at /app/backend/tests/test_test_prime_msq_tita_passage.py. It uses live preview URL via EXPO_PUBLIC_BACKEND_URL. IMPORTANT: pytest-xdist with loadscope pins by class — keep any sequential attempt-flow (start→patch→submit→analytics) inside a SINGLE class (see TestClatFullFlow); do NOT split across classes or you'll hit 404 'Attempt not found' from a different worker's state. Hindi field is a stub prefix '[हिं] <en text>' — passes non-null-string checks but is MOCKED translation.",
+  "rca_of_issue": "N/A — no defects found; only test-script refactor (merged 3 dependent classes into TestClatFullFlow) needed because pytest-xdist loadscope was routing them to different workers, losing shared state."
+}

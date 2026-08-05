@@ -569,3 +569,66 @@ frontend:
       System Status honestly shows "not_connected" for that client.
       Test: created "AVISION ONE Proof Course" from admin → confirmed same doc appears via
       public /api/products endpoint (single-backend architecture proven).
+
+
+# ==========================================================================
+# Iteration: Test Prime Web Player Enhancements (P0)
+# ==========================================================================
+backend:
+  - task: "Test Prime — new question types (MSQ / TITA / passage-MCQ) + bilingual (EN/HI) + updated scoring"
+    implemented: true
+    working: true
+    file: "/app/backend/test_prime.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: |
+          Enhanced _gen_question_bank() to produce four question types with q_type field:
+          mcq (default), msq (5% random), tita (SA sections auto), passage-mcq (grouped in
+          English/Legal/GK-heavy sections in blocks of 4–5). Added text_hi/options_hi
+          bilingual stub fields and passage/passage_hi for grouped questions. Updated
+          submit_attempt scoring to handle each q_type:
+            • msq  → exact set match; full marks or negative
+            • tita → normalized numeric string compare; NO negative marking
+            • mcq / passage-mcq → single-int compare (unchanged)
+          save_state now transparently accepts number | number[] | string for answers.
+          _strip_q still hides `correct` + `explanation` from client while preserving all
+          new fields. Local smoke test on CLAT test (120 Q) produced:
+            {mcq: 90, passage-mcq: 24, msq: 6}, submit → score 5/120, review includes
+            q_type / user / correct / status for each item, 5 sectional entries and
+            3 difficulty_wise entries returned.
+frontend:
+  - task: "Web Test Prime Player — bilingual toggle, section timers + tabs, MSQ / TITA / passage split-screen"
+    implemented: true
+    working: "NA"
+    file: "/app/website/src/components/AttemptRunner.tsx, /app/website/src/app/portal/attempt/[id]/result/page.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          AttemptRunner rewritten to support:
+            • EN/HI language toggle (uses text_hi / options_hi / passage_hi)
+            • Section tabs (top strip) with per-section timers when sectional_timing=true
+            • Section-scoped auto-jump when a section timer hits 0
+            • Question-palette grouped by section with tiny badge (☰ MSQ, № TITA, ¶ Passage)
+            • Split-screen (passage left + question right) when q_type = passage-mcq
+            • MSQ rendered as checkboxes with "select ALL that apply" note
+            • TITA rendered as numeric text input with "no negative marking" note
+            • Persists section_times + active_section on the same 20 s auto-save loop
+          Result page reworked to:
+            • Handle new sectional / difficulty_wise / topic_wise field names AND the
+              legacy section_analytics / difficulty_analytics shape (backward-compatible)
+            • Render q_type-aware review (checkbox list for MSQ, text compare for TITA,
+              passage-aware block for passage-MCQ)
+            • Added topic-wise performance table (top 12)
+          Next.js build passes; TS compile clean; still requires Vercel deploy for full
+          browser QA (Next.js preview URL is not exposed by the Emergent proxy).
+
+metadata:
+  test_prime_web_player_enhancements: "IN REVIEW — awaiting Vercel manual acceptance test"

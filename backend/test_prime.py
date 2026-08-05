@@ -652,7 +652,14 @@ async def _bank_for(subject: str, topic: str) -> List[dict]:
 
 
 async def _gen_question_bank(test: dict, seed: int) -> List[dict]:
-    """Generate a full question paper for one attempt — draws from the curated bank first, then fills gaps with templated stems."""
+    """Generate a full question paper for one attempt — draws from the curated bank first, then fills gaps with templated stems.
+
+    Question types:
+      - mcq (default): 4 options, single correct
+      - msq: 4 options, multiple correct (list)
+      - tita: type-in-the-answer (numeric string)
+      - passage-mcq: shared passage across a group of consecutive questions
+    """
     rnd = random.Random(seed)
     pattern = PATTERNS.get(test["pattern_id"], {})
     sections = pattern.get("sections") or [{"name": "General", "questions": test.get("questions", 20), "marks": test.get("marks", 40), "duration_min": test.get("duration_min", 30)}]
@@ -664,6 +671,11 @@ async def _gen_question_bank(test: dict, seed: int) -> List[dict]:
         topics = _TOPIC_MAP.get(subj, _TOPIC_MAP["general"])
         qcount = int(sec.get("questions") or 0)
         per_q_marks = round((sec.get("marks", 0) / max(1, qcount)), 2) if qcount else 1
+        # Passage grouping strategy: For English/Legal/Comprehension-heavy sections,
+        # create a shared passage for every 4-5 consecutive questions (up to 30% of section).
+        passage_positions = _plan_passages(sec["name"], subj, qcount, rnd)
+        # SA (short-answer / TITA) section detection — e.g. "Quantitative Aptitude (SA)"
+        is_sa_section = ("(SA)" in sec["name"]) or ("Short Answer" in sec["name"]) or ("Numerical" in sec["name"])
         # Round-robin over topics
         for i in range(qcount):
             qidx += 1
@@ -672,30 +684,113 @@ async def _gen_question_bank(test: dict, seed: int) -> List[dict]:
             src = None
             if bank_pool:
                 src = rnd.choice(bank_pool)
-            if src:
+            # Determine q_type
+            q_type = "mcq"
+            passage_id = passage_positions.get(i)
+            if is_sa_section:
+                q_type = "tita"
+            elif passage_id:
+                q_type = "passage-mcq"
+            elif rnd.random() < 0.05:
+                # Sprinkle occasional MSQ (5%) except SA / passage
+                q_type = "msq"
+
+            if src and q_type == "mcq":
                 q = {
                     "id": f"q{qidx}",
+                    "q_type": "mcq",
                     "section": sec["name"],
                     "subject": subj,
                     "topic": topic,
                     "text": src["text"],
+                    "text_hi": src.get("text_hi") or _translate_stub(src["text"]),
                     "options": list(src["options"]),
+                    "options_hi": src.get("options_hi") or [_translate_stub(o) for o in src["options"]],
                     "correct": int(src["correct"]),
                     "marks": per_q_marks,
                     "difficulty": src.get("difficulty", ["Easy", "Medium", "Hard"][rnd.randint(0, 2)]),
                     "explanation": src.get("explanation", f"See topic notes for {topic}."),
                     "source": "curated" if src.get("_from") != "admin" else "admin",
                 }
-            else:
-                # Fallback to templated demo question
-                correct_idx = rnd.randint(0, 3)
+            elif q_type == "tita":
+                # Numerical / short-answer question
+                stem, correct_val = _q_tita(subj, topic, i + 1, rnd)
                 q = {
                     "id": f"q{qidx}",
+                    "q_type": "tita",
                     "section": sec["name"],
                     "subject": subj,
                     "topic": topic,
-                    "text": _q_stem(subj, topic, i + 1, rnd),
-                    "options": _q_options(subj, topic, correct_idx, rnd),
+                    "text": stem,
+                    "text_hi": _translate_stub(stem),
+                    "options": [],
+                    "options_hi": [],
+                    "correct": correct_val,  # string
+                    "marks": per_q_marks,
+                    "difficulty": ["Easy", "Medium", "Hard"][rnd.randint(0, 2)],
+                    "explanation": f"Numerical answer: {correct_val}. Enter the exact number to score.",
+                    "source": "templated",
+                }
+            elif q_type == "msq":
+                stem = _q_stem(subj, topic, i + 1, rnd).replace("Q", "MSQ")
+                opts = _q_options(subj, topic, 0, rnd)
+                # 2-3 correct options
+                num_correct = rnd.choice([2, 3])
+                correct_set = sorted(rnd.sample(range(4), num_correct))
+                q = {
+                    "id": f"q{qidx}",
+                    "q_type": "msq",
+                    "section": sec["name"],
+                    "subject": subj,
+                    "topic": topic,
+                    "text": f"[Multi-select] {stem}\nSelect ALL that apply.",
+                    "text_hi": _translate_stub(f"[Multi-select] {stem}\nSelect ALL that apply."),
+                    "options": opts,
+                    "options_hi": [_translate_stub(o) for o in opts],
+                    "correct": correct_set,  # list[int]
+                    "marks": per_q_marks,
+                    "difficulty": "Hard",
+                    "explanation": f"Correct options: {', '.join(chr(65 + c) for c in correct_set)}. Partial marking not applicable — select ALL correct options exactly.",
+                    "source": "templated",
+                }
+            elif q_type == "passage-mcq":
+                passage_text, passage_topic = _passage_for(subj, passage_id, rnd)
+                correct_idx = rnd.randint(0, 3)
+                stem, opts = _passage_question(passage_topic, i + 1, correct_idx, rnd)
+                q = {
+                    "id": f"q{qidx}",
+                    "q_type": "passage-mcq",
+                    "passage_id": passage_id,
+                    "passage": passage_text,
+                    "passage_hi": _translate_stub(passage_text),
+                    "section": sec["name"],
+                    "subject": subj,
+                    "topic": topic,
+                    "text": stem,
+                    "text_hi": _translate_stub(stem),
+                    "options": opts,
+                    "options_hi": [_translate_stub(o) for o in opts],
+                    "correct": correct_idx,
+                    "marks": per_q_marks,
+                    "difficulty": ["Easy", "Medium", "Hard"][rnd.randint(0, 2)],
+                    "explanation": f"Read the passage carefully. Correct answer: Option {chr(65 + correct_idx)}.",
+                    "source": "templated",
+                }
+            else:
+                # Fallback to templated MCQ demo question
+                correct_idx = rnd.randint(0, 3)
+                stem = _q_stem(subj, topic, i + 1, rnd)
+                opts = _q_options(subj, topic, correct_idx, rnd)
+                q = {
+                    "id": f"q{qidx}",
+                    "q_type": "mcq",
+                    "section": sec["name"],
+                    "subject": subj,
+                    "topic": topic,
+                    "text": stem,
+                    "text_hi": _translate_stub(stem),
+                    "options": opts,
+                    "options_hi": [_translate_stub(o) for o in opts],
                     "correct": correct_idx,
                     "marks": per_q_marks,
                     "difficulty": ["Easy", "Medium", "Hard"][rnd.randint(0, 2)],
@@ -704,6 +799,113 @@ async def _gen_question_bank(test: dict, seed: int) -> List[dict]:
                 }
             questions.append(q)
     return questions
+
+
+def _plan_passages(section_name: str, subj: str, qcount: int, rnd: random.Random) -> dict:
+    """Assign passage_id to a subset of consecutive questions in eligible sections.
+    Returns a dict: {question_index_in_section: passage_id}
+    """
+    if qcount < 8:
+        return {}
+    is_english = subj == "english" or "english" in section_name.lower() or "verbal" in section_name.lower() or "comprehension" in section_name.lower()
+    is_legal = subj == "legal" or "legal" in section_name.lower()
+    is_gk = subj == "gk" or "current" in section_name.lower() or "affairs" in section_name.lower()
+    if not (is_english or is_legal or is_gk):
+        return {}
+    # allocate ~2 passages of 4-5 questions
+    plan = {}
+    pos = 2
+    for pid in range(1, 3):
+        size = rnd.choice([4, 5])
+        if pos + size > qcount - 2:
+            break
+        for i in range(pos, pos + size):
+            plan[i] = f"p{pid}"
+        pos += size + 3
+    return plan
+
+
+def _passage_for(subj: str, passage_id: str, rnd: random.Random) -> tuple:
+    pool = {
+        "english": [
+            ("The rise of artificial intelligence has fundamentally reshaped modern industries. From healthcare to transportation, AI-driven tools promise unprecedented efficiency. Yet critics argue that unchecked automation could displace millions of workers, deepen inequality, and erode privacy. Regulators worldwide face a delicate balancing act: fostering innovation while safeguarding public interest.", "AI Regulation"),
+            ("Climate change is no longer a distant threat but an immediate crisis. Rising sea levels, record heatwaves, and biodiversity loss have accelerated calls for aggressive decarbonisation. However, developing economies argue that the burden of transition must not fall disproportionately on nations still striving for basic development milestones.", "Climate Policy"),
+            ("The Indian judiciary has long grappled with case backlogs. Recent digitisation drives and e-court initiatives have shown promise, yet the pendency of over four crore cases points to structural weaknesses that technology alone cannot solve.", "Judicial Reform"),
+        ],
+        "legal": [
+            ("The doctrine of Basic Structure, first articulated in Kesavananda Bharati v State of Kerala (1973), holds that Parliament cannot amend the Constitution in a manner that destroys its fundamental features. Since then, the Supreme Court has expanded and refined this doctrine, applying it to safeguard judicial review, democratic governance, and secularism.", "Basic Structure"),
+            ("Under Section 2(h) of the Indian Contract Act 1872, an agreement enforceable by law is a contract. To be enforceable, an agreement must satisfy the essentials — offer, acceptance, lawful consideration, competent parties, free consent, lawful object, and not expressly declared void.", "Contract Law"),
+        ],
+        "gk": [
+            ("India's G20 presidency in 2023 focused on multilateral reforms, digital public infrastructure, and green development. The New Delhi Leaders' Declaration marked a consensus on several contested geopolitical issues and highlighted India's growing global influence.", "G20 India"),
+            ("The Indian Space Research Organisation (ISRO) achieved a historic milestone with the successful landing of Chandrayaan-3 near the lunar south pole in August 2023. This made India the first country to land on the moon's south polar region.", "Chandrayaan-3"),
+        ],
+    }
+    key = subj if subj in pool else "english"
+    passage, topic = rnd.choice(pool[key])
+    return passage, topic
+
+
+def _passage_question(passage_topic: str, n: int, correct: int, rnd: random.Random) -> tuple:
+    templates = [
+        (f"According to the passage on {passage_topic}, which of the following is the AUTHOR's central argument?",
+         ["Innovation must outpace regulation", "Balance is essential between competing interests", "Progress is invariably linear", "Public interest is secondary"]),
+        (f"Which of the following can be INFERRED from the passage?",
+         ["The topic is universally settled", "Multiple stakeholders hold differing views", "Only economic factors matter", "The status quo is optimal"]),
+        (f"What best describes the tone of the author regarding {passage_topic}?",
+         ["Enthusiastic and uncritical", "Balanced and analytical", "Openly hostile", "Nostalgic"]),
+        (f"Which of the following would WEAKEN the author's claim about {passage_topic}?",
+         ["Concrete evidence supporting the opposite trend", "Anecdotes affirming the claim", "Historical parallels", "Popular opinion"]),
+        (f"Choose the option that best captures the CONCLUSION of the passage on {passage_topic}.",
+         ["Immediate uniform action is required", "Contextual, calibrated responses are needed", "Ignore the problem", "Rely on tradition alone"]),
+    ]
+    stem, opts = templates[n % len(templates)]
+    # Ensure correct index option is placed at `correct`
+    # Rotate options so option at index 1 (usually the balanced/nuanced one) becomes `correct`
+    if correct != 1:
+        opts = opts.copy()
+        opts[1], opts[correct] = opts[correct], opts[1]
+    return stem, opts
+
+
+def _q_tita(subj: str, topic: str, n: int, rnd: random.Random) -> tuple:
+    """Return (stem, correct_answer_string) for a numerical/type-in question."""
+    if subj in ("quant", "math"):
+        a, b = rnd.randint(10, 50), rnd.randint(2, 15)
+        variants = [
+            (f"[Type the answer as a number] If x + {b} = {a + b}, find x.", str(a)),
+            (f"[Type the answer as a number] The square of {a} minus {b}² equals _____.", str(a * a - b * b)),
+            (f"[Type the answer as a number] Find the LCM of {a} and {b}.", str((a * b) // _gcd(a, b))),
+            (f"[Type the answer as a number] What is {a}% of {b * 20}?", str(round(a * b * 20 / 100, 2))),
+            (f"[Type the answer as a number] A car covers {a * 10} km in {b} hours. What is its speed (km/h)?", str(round(a * 10 / b, 2))),
+        ]
+        stem, ans = variants[n % len(variants)]
+        return stem, ans
+    if subj == "reasoning":
+        seq = [2, 4, 8, 16, 32, 64][:rnd.randint(4, 5)]
+        return (f"[Type the answer as a number] What is the next number in the series: {', '.join(map(str, seq))}, __?", str(seq[-1] * 2))
+    if subj == "gk":
+        return ("[Type the answer as a number] In which year was the Constitution of India adopted?", "1949")
+    # Default numeric
+    v = rnd.randint(10, 100)
+    return (f"[Type the answer as a number] If a number when doubled becomes {v * 2}, what is the number?", str(v))
+
+
+def _gcd(a: int, b: int) -> int:
+    while b:
+        a, b = b, a % b
+    return a
+
+
+def _translate_stub(text: str) -> str:
+    """Cheap demo Hindi translation stub — real translation would use a service.
+    We prepend a Hindi-block marker so UI can clearly indicate a translated string
+    without misrepresenting content. Content stays intact; a bilingual prefix is added.
+    """
+    if not text:
+        return ""
+    # Only add prefix once; do not translate for non-string values
+    return f"[हिं] {text}"
 
 
 def _q_stem(subject: str, topic: str, n: int, rnd: random.Random) -> str:
@@ -980,11 +1182,47 @@ async def submit_attempt(attempt_id: str, user_id: str):
         diff_agg[diff]["total"] += 1
 
         ans = answers.get(q["id"])
-        if ans is None:
+        q_type = q.get("q_type", "mcq")
+        correct = q.get("correct")
+        # Normalize scoring per q_type
+        def _is_correct() -> bool:
+            if ans is None:
+                return False
+            try:
+                if q_type == "msq":
+                    # correct = list[int]; ans = list[int] — exact set match
+                    if not isinstance(correct, list): return False
+                    if not isinstance(ans, list): return False
+                    return sorted(int(x) for x in ans) == sorted(int(x) for x in correct)
+                if q_type == "tita":
+                    # correct = string; ans = string — normalized numeric compare
+                    def norm(v):
+                        s = str(v).strip().replace(",", "")
+                        try:
+                            f = float(s)
+                            return f"{f:.4f}".rstrip("0").rstrip(".")
+                        except Exception:
+                            return s.lower()
+                    return norm(ans) == norm(correct)
+                # mcq / passage-mcq (single int)
+                return int(ans) == int(correct)
+            except Exception:
+                return False
+
+        def _is_attempted() -> bool:
+            if ans is None: return False
+            if isinstance(ans, list): return len(ans) > 0
+            if isinstance(ans, str): return ans.strip() != ""
+            return True
+
+        # TITA has no negative marking per convention
+        neg_for_this = 0.0 if q_type == "tita" else neg
+
+        if not _is_attempted():
             unattempted_count += 1
             sec_agg[sec]["unattempted"] += 1
             status_ = "unattempted"
-        elif int(ans) == int(q["correct"]):
+        elif _is_correct():
             correct_count += 1
             score += float(q.get("marks", 1))
             sec_agg[sec]["correct"] += 1
@@ -994,19 +1232,22 @@ async def submit_attempt(attempt_id: str, user_id: str):
             status_ = "correct"
         else:
             wrong_count += 1
-            score -= neg
+            score -= neg_for_this
             sec_agg[sec]["wrong"] += 1
-            sec_agg[sec]["score"] -= neg
+            sec_agg[sec]["score"] -= neg_for_this
             topic_agg[f"{sec}|{topic}"]["wrong"] += 1
             diff_agg[diff]["wrong"] += 1
             status_ = "wrong"
 
         review_list.append({
-            "id": q["id"], "section": sec, "topic": topic, "difficulty": diff,
-            "text": q["text"], "options": q["options"],
-            "correct": q["correct"], "user": ans if ans is not None else None,
+            "id": q["id"], "q_type": q_type,
+            "section": sec, "topic": topic, "difficulty": diff,
+            "text": q["text"], "text_hi": q.get("text_hi"),
+            "options": q.get("options", []), "options_hi": q.get("options_hi", []),
+            "passage": q.get("passage"), "passage_hi": q.get("passage_hi"),
+            "correct": correct, "user": ans if ans is not None else None,
             "explanation": q.get("explanation", ""), "status": status_,
-            "marks_earned": float(q.get("marks", 1)) if status_ == "correct" else (-neg if status_ == "wrong" else 0.0),
+            "marks_earned": float(q.get("marks", 1)) if status_ == "correct" else (-neg_for_this if status_ == "wrong" else 0.0),
         })
 
     attempted = correct_count + wrong_count
